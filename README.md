@@ -20,23 +20,28 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 
 3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run server.py`
 
-3. Add the MCP server configuration to your LLM client.  For example, in Claude Desktop:
+3. Add the MCP server configuration to your LLM client.  For example, in Claude Desktop (Mac):
 
 ```json
-"netbox": {
-    "command": "uv",
-    "args": [
-        "--directory",
-        "/path/to/netbox-mcp-server",
-        "run",
-        "server.py"
-    ],
-    "env": {
-        "NETBOX_URL": "https://netbox.example.com/",
-        "NETBOX_TOKEN": "<your-api-token>"
-    }
+{
+  "mcpServers": {
+        "netbox": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                "/path/to/netbox-mcp-server",
+                "run",
+                "server.py"
+            ],
+            "env": {
+                "NETBOX_URL": "https://netbox.example.com/",
+                "NETBOX_TOKEN": "<your-api-token>"
+            }
+        }
 }
 ```
+> On Windows, use full, escaped path to your instance, such as `C:\\Users\\myuser\\.local\\bin\\uv` and `C:\\Users\\myuser\\netbox-mcp-server`. 
+> For detailed troubleshooting, consult the [MCP quickstart](https://modelcontextprotocol.io/quickstart/user).
 
 4. Use the tools in your LLM client.  For example:
 
