@@ -53,6 +53,14 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 > What Cisco devices are in my network?
 ```
 
+## Docker 
+
+You can use the container like this 
+
+("netbox-mcp", ["python3", "server.py", "--oneshot"], "tools/discover", "tools/call"),
+
+And it will discover the tools and be able to use the tools automatically
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
