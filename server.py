@@ -1,12 +1,12 @@
 import os
+import re
+import unicodedata
+from typing import Dict, List
 
 from mcp.server.fastmcp import FastMCP
-from typing import Dict, List, Optional
 
+from constants import API_ENDPOINTS
 from netbox_client import NetBoxRestClient
-
-from .constants import API_ENDPOINTS
-
 
 mcp = FastMCP("NetBox", log_level="DEBUG")
 netbox = None
@@ -180,6 +180,14 @@ def netbox_get_objects(object_type: str, filters: Dict[str, str], fields: str = 
     - wireless-lans
     - wireless-lan-groups
     - wireless-links
+
+    Customization:
+    - custom-fields
+    - custom-field-choice-sets
+    - custom-links
+    - export-templates
+    - tags
+    - image-attachments
     
     See NetBox API documentation for filtering options for each object type.
     """
@@ -256,7 +264,14 @@ def slugify_name(object_name: str):
     Returns:
         Slugified name
     """
-    return slugify(object_name)
+    value = str(object_name)
+    value = (
+        unicodedata.normalize("NFKD", value)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    value = re.sub(r"[^\w\s-]", "", value.lower())
+    return re.sub(r"[-\s]+", "-", value).strip("-_")
 
 
 @mcp.tool()

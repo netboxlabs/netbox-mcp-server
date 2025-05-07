@@ -1,4 +1,3 @@
-
 API_ENDPOINTS = {
     # DCIM
     "cables": {
@@ -2394,4 +2393,172 @@ API_ENDPOINTS = {
             "last_updated"
         ],
     },
+    # Customization
+    "custom-fields": {
+        "endpoint": "extras/custom-fields",
+        "filters": [
+            {"name": "name", "description": "Name of the custom field"},
+            {"name": "content_types", "description": "Content types this field applies to"},
+            {"name": "type", "description": "Type of the custom field"},
+            {"name": "required", "description": "Whether the field is required"},
+            {"name": "filter_logic", "description": "Filter logic for the field"},
+            {"name": "weight", "description": "Weight of the field"},
+            {"name": "description", "description": "Description of the field"},
+            {"name": "label", "description": "Label of the field"},
+            {"name": "validation_regex", "description": "Validation regex for the field"},
+            {"name": "choice_set", "description": "Choice set for the field"},
+            {"name": "tag", "description": "Tag associated with the field"}
+        ],
+        "description": "Manage custom fields for NetBox objects.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "content_types",
+            "type",
+            "name",
+            "label",
+            "description",
+            "required",
+            "filter_logic",
+            "default",
+            "weight",
+            "validation_minimum",
+            "validation_maximum",
+            "validation_regex",
+            "choice_set",
+            "created",
+            "last_updated"
+        ]
+    },
+    "custom-field-choice-sets": {
+        "endpoint": "extras/custom-field-choice-sets",
+        "filters": [
+            {"name": "name", "description": "Name of the choice set"},
+            {"name": "description", "description": "Description of the choice set"},
+            {"name": "base_choices", "description": "Base choices for the set"},
+            {"name": "extra_choices", "description": "Extra choices for the set"},
+            {"name": "order_alphabetically", "description": "Whether to order choices alphabetically"},
+            {"name": "tag", "description": "Tag associated with the choice set"}
+        ],
+        "description": "Manage choice sets for custom fields.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "name",
+            "description",
+            "base_choices",
+            "extra_choices",
+            "order_alphabetically",
+            "created",
+            "last_updated"
+        ]
+    },
+    "custom-links": {
+        "endpoint": "extras/custom-links",
+        "filters": [
+            {"name": "name", "description": "Name of the custom link"},
+            {"name": "content_types", "description": "Content types this link applies to"},
+            {"name": "enabled", "description": "Whether the link is enabled"},
+            {"name": "link_text", "description": "Text of the link"},
+            {"name": "link_url", "description": "URL of the link"},
+            {"name": "weight", "description": "Weight of the link"},
+            {"name": "group_name", "description": "Group name for the link"},
+            {"name": "button_class", "description": "CSS class for the link button"},
+            {"name": "new_window", "description": "Whether to open in new window"},
+            {"name": "tag", "description": "Tag associated with the link"}
+        ],
+        "description": "Manage custom links for NetBox objects.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "content_types",
+            "name",
+            "enabled",
+            "link_text",
+            "link_url",
+            "weight",
+            "group_name",
+            "button_class",
+            "new_window",
+            "created",
+            "last_updated"
+        ]
+    },
+    "export-templates": {
+        "endpoint": "extras/export-templates",
+        "filters": [
+            {"name": "name", "description": "Name of the export template"},
+            {"name": "content_types", "description": "Content types this template applies to"},
+            {"name": "description", "description": "Description of the template"},
+            {"name": "mime_type", "description": "MIME type of the template"},
+            {"name": "file_extension", "description": "File extension for the template"},
+            {"name": "as_attachment", "description": "Whether to serve as attachment"},
+            {"name": "tag", "description": "Tag associated with the template"}
+        ],
+        "description": "Manage export templates for NetBox objects.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "content_types",
+            "name",
+            "description",
+            "template_code",
+            "mime_type",
+            "file_extension",
+            "as_attachment",
+            "created",
+            "last_updated"
+        ]
+    },
+    "tags": {
+        "endpoint": "extras/tags",
+        "filters": [
+            {"name": "name", "description": "Name of the tag"},
+            {"name": "slug", "description": "Slug of the tag"},
+            {"name": "color", "description": "Color of the tag"},
+            {"name": "description", "description": "Description of the tag"}
+        ],
+        "description": "Manage tags for NetBox objects.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "name",
+            "slug",
+            "color",
+            "description",
+            "created",
+            "last_updated"
+        ]
+    },
+    "image-attachments": {
+        "endpoint": "extras/image-attachments",
+        "filters": [
+            {"name": "name", "description": "Name of the image attachment"},
+            {"name": "content_type", "description": "Content type of the attachment"},
+            {"name": "object_id", "description": "ID of the object"},
+            {"name": "image", "description": "Image file"},
+            {"name": "image_height", "description": "Height of the image"},
+            {"name": "image_width", "description": "Width of the image"},
+            {"name": "created", "description": "Creation date of the attachment"}
+        ],
+        "description": "Manage image attachments for NetBox objects.",
+        "fields": [
+            "id",
+            "url",
+            "display",
+            "content_type",
+            "object_id",
+            "name",
+            "image",
+            "image_height",
+            "image_width",
+            "created",
+            "last_updated"
+        ]
+    }
 }
