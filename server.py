@@ -1,112 +1,102 @@
-from mcp.server.fastmcp import FastMCP
-from netbox_client import NetBoxRestClient
 import os
 
-# Mapping of simple object names to API endpoints
-NETBOX_OBJECT_TYPES = {
-    # DCIM (Device and Infrastructure)
-    "cables": "dcim/cables",
-    "console-ports": "dcim/console-ports", 
-    "console-server-ports": "dcim/console-server-ports",
-    "devices": "dcim/devices",
-    "device-bays": "dcim/device-bays",
-    "device-roles": "dcim/device-roles",
-    "device-types": "dcim/device-types",
-    "front-ports": "dcim/front-ports",
-    "interfaces": "dcim/interfaces",
-    "inventory-items": "dcim/inventory-items",
-    "locations": "dcim/locations",
-    "manufacturers": "dcim/manufacturers",
-    "modules": "dcim/modules",
-    "module-bays": "dcim/module-bays",
-    "module-types": "dcim/module-types",
-    "platforms": "dcim/platforms",
-    "power-feeds": "dcim/power-feeds",
-    "power-outlets": "dcim/power-outlets",
-    "power-panels": "dcim/power-panels",
-    "power-ports": "dcim/power-ports",
-    "racks": "dcim/racks",
-    "rack-reservations": "dcim/rack-reservations",
-    "rack-roles": "dcim/rack-roles",
-    "regions": "dcim/regions",
-    "sites": "dcim/sites",
-    "site-groups": "dcim/site-groups",
-    "virtual-chassis": "dcim/virtual-chassis",
-    
-    # IPAM (IP Address Management)
-    "asns": "ipam/asns",
-    "asn-ranges": "ipam/asn-ranges", 
-    "aggregates": "ipam/aggregates",
-    "fhrp-groups": "ipam/fhrp-groups",
-    "ip-addresses": "ipam/ip-addresses",
-    "ip-ranges": "ipam/ip-ranges",
-    "prefixes": "ipam/prefixes",
-    "rirs": "ipam/rirs",
-    "roles": "ipam/roles",
-    "route-targets": "ipam/route-targets",
-    "services": "ipam/services",
-    "vlans": "ipam/vlans",
-    "vlan-groups": "ipam/vlan-groups",
-    "vrfs": "ipam/vrfs",
-    
-    # Circuits
-    "circuits": "circuits/circuits",
-    "circuit-types": "circuits/circuit-types",
-    "circuit-terminations": "circuits/circuit-terminations",
-    "providers": "circuits/providers",
-    "provider-networks": "circuits/provider-networks",
-    
-    # Virtualization
-    "clusters": "virtualization/clusters",
-    "cluster-groups": "virtualization/cluster-groups",
-    "cluster-types": "virtualization/cluster-types",
-    "virtual-machines": "virtualization/virtual-machines",
-    "vm-interfaces": "virtualization/interfaces",
-    
-    # Tenancy
-    "tenants": "tenancy/tenants",
-    "tenant-groups": "tenancy/tenant-groups",
-    "contacts": "tenancy/contacts",
-    "contact-groups": "tenancy/contact-groups",
-    "contact-roles": "tenancy/contact-roles",
-    
-    # VPN
-    "ike-policies": "vpn/ike-policies",
-    "ike-proposals": "vpn/ike-proposals",
-    "ipsec-policies": "vpn/ipsec-policies",
-    "ipsec-profiles": "vpn/ipsec-profiles",
-    "ipsec-proposals": "vpn/ipsec-proposals",
-    "l2vpns": "vpn/l2vpns",
-    "tunnels": "vpn/tunnels",
-    "tunnel-groups": "vpn/tunnel-groups",
-    
-    # Wireless
-    "wireless-lans": "wireless/wireless-lans",
-    "wireless-lan-groups": "wireless/wireless-lan-groups",
-    "wireless-links": "wireless/wireless-links",
+from mcp.server.fastmcp import FastMCP
+from typing import Dict, List, Optional
 
-    # Extras
-    "config-contexts": "extras/config-contexts",
-    "custom-fields": "extras/custom-fields",
-    "export-templates": "extras/export-templates",
-    "image-attachments": "extras/image-attachments",
-    "jobs": "extras/jobs",
-    "saved-filters": "extras/saved-filters",
-    "scripts": "extras/scripts",
-    "tags": "extras/tags",
-    "webhooks": "extras/webhooks",
-}
+from netbox_client import NetBoxRestClient
+
+from .constants import API_ENDPOINTS
+
 
 mcp = FastMCP("NetBox", log_level="DEBUG")
 netbox = None
 
+
 @mcp.tool()
-def netbox_get_objects(object_type: str, filters: dict):
+def get_valid_filters(object_type: str) -> List[Dict[str, str]]:
+    """
+    Retrieve valid filter keys and descriptions for a given NetBox object_type.
+
+    Args:
+        object_type (str): The type of NetBox object to query.
+            Example values: "devices", "ip-addresses", "vlans", "virtual-machines", "tunnels", etc.
+
+    Returns:
+        A list of valid filters and descriptions for that object type, each containing:
+            - name: The filter key
+            - description: What the filter does
+
+    Example:
+        get_valid_filters("devices") →
+        [
+            {"name": "name", "description": "Exact match on device name"},
+            {"name": "site", "description": "Filter by Site slug"},
+            ...
+        ]
+
+    If the object_type is unknown or unsupported, returns an empty list.
+
+    This should be used before calling get_objects if you are not sure what filters are
+    valid or available for that type. Use the "name" field to construct the filters.
+    """
+    return API_ENDPOINTS.get(object_type, {}).get("filters", [])
+
+
+@mcp.tool()
+def get_fields(object_type: str) -> List[str]:
+    """
+    Retrieve available fields for a given NetBox object_type.
+
+    Args:
+        object_type (str): The type of NetBox object to query.
+            Example values: "devices", "ip-addresses", "vlans", "virtual-machines", "tunnels", etc.
+
+    Returns:
+        A list of field names available for that object type.
+
+    Example:
+        get_fields("devices") →
+        [
+            "id",
+            "url", 
+            "name",
+            "serial",
+            "asset_tag",
+            ...
+        ]
+
+    If the object_type is unknown or unsupported, returns an empty list.
+    """
+    return API_ENDPOINTS.get(object_type, {}).get("fields", [])
+
+
+def call_netbox_api(endpoint_key: str, filters: dict = None):
+    """
+    Generic function to call a NetBox API endpoint.
+
+    Args:
+        endpoint_key (str): Key referencing the API_ENDPOINTS metadata
+        filters (dict, optional): Filtering parameters. Defaults to empty dict.
+
+    Returns:
+        List[dict]: API response data
+    """
+    endpoint_info = API_ENDPOINTS.get(endpoint_key)
+    if not endpoint_info:
+        raise ValueError(f"Unknown endpoint key: {endpoint_key}")
+
+    endpoint = endpoint_info["endpoint"]
+    return netbox.get(endpoint, params=filters or {})
+
+
+@mcp.tool()
+def netbox_get_objects(object_type: str, filters: Dict[str, str], fields: str = None):
     """
     Get objects from NetBox based on their type and filters
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
-        filters: dict of filters to apply to the API call based on the NetBox API filtering options
+        filters (dict): Key-value filters to apply. Must match valid filter keys for the given object_type.
+        fields (str, optional): Comma-separated list of fields to include in response. If not specified, returns default fields.
     
     Valid object_type values:
     
@@ -193,16 +183,18 @@ def netbox_get_objects(object_type: str, filters: dict):
     
     See NetBox API documentation for filtering options for each object type.
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
-        
-    # Make API call
-    return netbox.get(endpoint, params=filters)
+    if object_type not in API_ENDPOINTS:
+        raise ValueError(f"Unsupported object_type: {object_type}")
+
+    if not filters:
+        filters = {}
+
+    filters["brief"] = 1
+    if fields:
+        filters["fields"] = fields
+
+    return call_netbox_api(object_type, filters or {})
+
 
 @mcp.tool()
 def netbox_get_object_by_id(object_type: str, object_id: int):
@@ -217,14 +209,55 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
         Complete object details
     """
     # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    if object_type not in API_ENDPOINTS:
+        valid_types = "\n".join(f"- {t}" for t in sorted(API_ENDPOINTS.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
+
     # Get API endpoint from mapping
-    endpoint = f"{NETBOX_OBJECT_TYPES[object_type]}/{object_id}"
-    
+    endpoint = f"{API_ENDPOINTS[object_type]['endpoint']}/{object_id}"
+
     return netbox.get(endpoint)
+
+@mcp.tool()
+def get_object_by_name(object_type: str, object_name: str):
+    """
+    Get detailed information about a specific NetBox object by its name.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
+        object_name: The name of the object
+
+    Returns:
+        Complete object details
+    """
+    # Validate object_type exists in mapping
+    if object_type not in API_ENDPOINTS:
+        valid_types = "\n".join(f"- {t}" for t in sorted(API_ENDPOINTS.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    filters = {"q": object_name}
+    # Get API endpoint from mapping
+    data = call_netbox_api(object_type, filters or {})
+    if len(data) == 1:
+        endpoint = f"{API_ENDPOINTS[object_type]['endpoint']}/{data[0]['id']}"
+        return netbox.get(endpoint)
+
+    return data
+
+
+@mcp.tool()
+def slugify_name(object_name: str):
+    """
+    Slugify a name to be used as a NetBox object name.
+
+    Args:
+        object_name: The name to slugify
+
+    Returns:
+        Slugified name
+    """
+    return slugify(object_name)
+
 
 @mcp.tool()
 def netbox_get_changelogs(filters: dict):
