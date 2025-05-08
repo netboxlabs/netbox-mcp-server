@@ -8,6 +8,10 @@ This module provides a base class for NetBox client implementations and a REST A
 import abc
 from typing import Any, Dict, List, Optional, Union
 import requests
+import urllib3
+
+# Disable SSL certificate warnings when verify_ssl is False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class NetBoxClientBase(abc.ABC):
@@ -177,6 +181,7 @@ class NetBoxRestClient(NetBoxClientBase):
     def get(self, endpoint: str, id: Optional[int] = None, params: Optional[Dict[str, Any]] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Retrieve one or more objects from NetBox via the REST API.
+        Handles pagination for list endpoints.
         
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
@@ -190,14 +195,40 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params, verify=self.verify_ssl)
+        # Make a copy of params, as NetBox 'next' URLs usually include necessary params.
+        # Initial params are used for the first request.
+        current_params = params.copy() if params else {}
+
+        response = self.session.get(url, params=current_params, verify=self.verify_ssl)
         response.raise_for_status()
         
         data = response.json()
-        if id is None and 'results' in data:
-            # Handle paginated results
-            return data['results']
-        return data
+        
+        # If an ID is provided, it's a request for a single object, no pagination.
+        if id is not None:
+            return data
+
+        # If 'results' is in data, it's a list endpoint.
+        # This is the primary path for paginated results.
+        if 'results' in data:
+            all_results = data['results'] # First page of results
+            next_url = data.get('next')   # URL for the next page, if any
+            
+            while next_url:
+                # Subsequent page requests use the 'next' URL directly,
+                # which already contains necessary filters/offsets.
+                response = self.session.get(next_url, verify=self.verify_ssl)
+                response.raise_for_status()
+                page_data = response.json()
+                # Extend the list with results from the current page
+                all_results.extend(page_data.get('results', []))
+                next_url = page_data.get('next') # Get URL for the *next* next page
+            return all_results # Return all accumulated results
+        else:
+            # This handles cases where 'id' is None (list endpoint) but 'results' key is missing.
+            # This could be an endpoint returning a list directly (uncommon for NetBox standard API)
+            # or an error/unexpected response format.
+            return data
     
     def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
