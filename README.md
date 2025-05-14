@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/netboxlabs-netbox-mcp-server-badge.png)](https://mseep.ai/app/netboxlabs-netbox-mcp-server)
+
 # NetBox MCP Server
 
 This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox.  It enables you to interact with your data in NetBox directly via LLMs that support MCP.
