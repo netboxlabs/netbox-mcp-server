@@ -13,7 +13,7 @@ netbox = None
 
 
 @mcp.tool()
-def get_valid_filters(object_type: str) -> List[Dict[str, str]]:
+async def netbox_get_valid_filters(object_type: str) -> List[Dict[str, str]]:
     """
     Retrieve valid filter keys and descriptions for a given NetBox object_type.
 
@@ -43,7 +43,7 @@ def get_valid_filters(object_type: str) -> List[Dict[str, str]]:
 
 
 @mcp.tool()
-def get_fields(object_type: str) -> List[str]:
+async def netbox_get_fields(object_type: str) -> List[str]:
     """
     Retrieve available fields for a given NetBox object_type.
 
@@ -90,106 +90,42 @@ def call_netbox_api(endpoint_key: str, filters: dict = None):
 
 
 @mcp.tool()
-def netbox_get_objects(object_type: str, filters: Dict[str, str], fields: str = None):
+async def netbox_get_objects(object_type: str, filters: Dict[str, str], fields: str = None, limit: int = 25, offset: int = 0):
     """
-    Get objects from NetBox based on their type and filters
+    Get objects from NetBox based on their type and filters with pagination support.
+    
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         filters (dict): Key-value filters to apply. Must match valid filter keys for the given object_type.
         fields (str, optional): Comma-separated list of fields to include in response. If not specified, returns default fields.
+        limit (int, optional): Maximum number of objects to return per page. Defaults to 25.
+        offset (int, optional): Number of objects to skip before starting to collect the result set. Defaults to 0.
     
-    Valid object_type values:
-    
-    DCIM (Device and Infrastructure):
-    - cables
-    - console-ports
-    - console-server-ports  
-    - devices
-    - device-bays
-    - device-roles
-    - device-types
-    - front-ports
-    - interfaces
-    - inventory-items
-    - locations
-    - manufacturers
-    - modules
-    - module-bays
-    - module-types
-    - platforms
-    - power-feeds
-    - power-outlets
-    - power-panels
-    - power-ports
-    - racks
-    - rack-reservations
-    - rack-roles
-    - regions
-    - sites
-    - site-groups
-    - virtual-chassis
-    
-    IPAM (IP Address Management):
-    - asns
-    - asn-ranges
-    - aggregates 
-    - fhrp-groups
-    - ip-addresses
-    - ip-ranges
-    - prefixes
-    - rirs
-    - roles
-    - route-targets
-    - services
-    - vlans
-    - vlan-groups
-    - vrfs
-    
-    Circuits:
-    - circuits
-    - circuit-types
-    - circuit-terminations
-    - providers
-    - provider-networks
-    
-    Virtualization:
-    - clusters
-    - cluster-groups
-    - cluster-types
-    - virtual-machines
-    - vm-interfaces
-    
-    Tenancy:
-    - tenants
-    - tenant-groups
-    - contacts
-    - contact-groups
-    - contact-roles
-    
-    VPN:
-    - ike-policies
-    - ike-proposals
-    - ipsec-policies
-    - ipsec-profiles
-    - ipsec-proposals
-    - l2vpns
-    - tunnels
-    - tunnel-groups
-    
-    Wireless:
-    - wireless-lans
-    - wireless-lan-groups
-    - wireless-links
+    Returns:
+        dict: A dictionary containing:
+            - count: Total number of objects matching the query
+            - next: URL for the next page of results (null if no next page)
+            - previous: URL for the previous page of results (null if no previous page)
+            - results: List of objects matching the query
 
-    Customization:
-    - custom-fields
-    - custom-field-choice-sets
-    - custom-links
-    - export-templates
-    - tags
-    - image-attachments
-    
-    See NetBox API documentation for filtering options for each object type.
+    Example:
+        # Get first page of devices
+        netbox_get_objects(
+            object_type="devices",
+            filters={"site": "site-slug"},
+            fields="id,name,status",
+            limit=25,
+            offset=0
+        )
+        
+        # Get second page of devices
+        netbox_get_objects(
+            object_type="devices",
+            filters={"site": "site-slug"},
+            fields="id,name,status",
+            limit=25,
+            offset=25
+        )
     """
     if object_type not in API_ENDPOINTS:
         raise ValueError(f"Unsupported object_type: {object_type}")
@@ -200,12 +136,16 @@ def netbox_get_objects(object_type: str, filters: Dict[str, str], fields: str = 
     filters["brief"] = 1
     if fields:
         filters["fields"] = fields
+    
+    # Add pagination parameters
+    filters["limit"] = limit
+    filters["offset"] = offset
 
     return call_netbox_api(object_type, filters or {})
 
 
 @mcp.tool()
-def netbox_get_object_by_id(object_type: str, object_id: int):
+async def netbox_get_object_by_id(object_type: str, object_id: int):
     """
     Get detailed information about a specific NetBox object by its ID.
     
@@ -227,7 +167,7 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     return netbox.get(endpoint)
 
 @mcp.tool()
-def get_object_by_name(object_type: str, object_name: str):
+async def netbox_get_object_by_name(object_type: str, object_name: str):
     """
     Get detailed information about a specific NetBox object by its name.
 
@@ -254,7 +194,7 @@ def get_object_by_name(object_type: str, object_name: str):
 
 
 @mcp.tool()
-def slugify_name(object_name: str):
+def netbox_slugify_name(object_name: str):
     """
     Slugify a name to be used as a NetBox object name.
 
@@ -275,15 +215,21 @@ def slugify_name(object_name: str):
 
 
 @mcp.tool()
-def netbox_get_changelogs(filters: dict):
+async def netbox_get_changelogs(filters: dict, limit: int = 25, offset: int = 0):
     """
-    Get object change records (changelogs) from NetBox based on filters.
+    Get object change records (changelogs) from NetBox based on filters with pagination support.
     
     Args:
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
+        limit (int, optional): Maximum number of changelog entries to return per page. Defaults to 25.
+        offset (int, optional): Number of changelog entries to skip before starting to collect the result set. Defaults to 0.
     
     Returns:
-        List of changelog objects matching the specified filters
+        dict: A dictionary containing:
+            - count: Total number of changelog entries matching the query
+            - next: URL for the next page of results (null if no next page)
+            - previous: URL for the previous page of results (null if no previous page)
+            - results: List of changelog entries matching the query
     
     Filtering options include:
     - user_id: Filter by user ID who made the change
@@ -320,8 +266,37 @@ def netbox_get_changelogs(filters: dict):
     """
     endpoint = "core/object-changes"
     
+    # Add pagination parameters to filters
+    filters["limit"] = limit
+    filters["offset"] = offset
+    
     # Make API call
     return netbox.get(endpoint, params=filters)
+
+
+@mcp.tool()
+async def netbox_get_valid_object_types() -> List[Dict[str, str]]:
+    """
+    Retrieve a list of all valid NetBox object types and their descriptions.
+
+    Returns:
+        A list of dictionaries containing:
+            - name: The object type key
+            - description: Description of what the object type represents
+
+    Example:
+        netbox_get_valid_object_types() →
+        [
+            {"name": "devices", "description": "Manage devices such as routers, switches, servers, and more."},
+            {"name": "ip-addresses", "description": "Manage individual IP addresses and their assignments."},
+            ...
+        ]
+    """
+    return [
+        {"name": key, "description": value["description"]}
+        for key, value in API_ENDPOINTS.items()
+    ]
+
 
 if __name__ == "__main__":
     # Load NetBox configuration from environment variables
