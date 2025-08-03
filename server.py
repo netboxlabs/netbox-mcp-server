@@ -279,11 +279,16 @@ if __name__ == "__main__":
     # Load NetBox configuration from environment variables
     netbox_url = os.getenv("NETBOX_URL")
     netbox_token = os.getenv("NETBOX_TOKEN")
-    
+    verify_ssl_env = os.getenv("VERIFY_SSL", "TRUE").strip().upper()
+    if verify_ssl_env in ("0", "FALSE", "NO", "OFF"):
+        verify_ssl = False
+    else:
+        verify_ssl = True
+
     if not netbox_url or not netbox_token:
         raise ValueError("NETBOX_URL and NETBOX_TOKEN environment variables must be set")
     
     # Initialize NetBox client
-    netbox = NetBoxRestClient(url=netbox_url, token=netbox_token)
+    netbox = NetBoxRestClient(url=netbox_url, token=netbox_token, verify_ssl=verify_ssl)
     
     mcp.run(transport="stdio")
