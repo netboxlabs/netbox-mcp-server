@@ -57,6 +57,30 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 > Show me all configuration changes to the core router in the last month
 ```
 
+## Docker Usage
+
+This repository provides two Dockerfiles:
+
+- `Dockerfile`: Standard image for running the NetBox MCP server. Use this for most deployments, for example in Claude Desktop or VS Code.
+- `Dockerfile.mcpo`: Image with [mcpo](https://github.com/open-webui/mcpo) included, mainly for integration with OpenWebUI or other MCP Orchestrators that require the OpenAPI-compatible HTTP MCP server.
+
+To build and run the standard image:
+
+```sh
+docker build -t netbox-mcp-server:main .
+docker run --rm -e NETBOX_URL=... -e NETBOX_TOKEN=... -p 8000:8000 netbox-mcp-server:main
+```
+
+To build and run the mcpo-enabled image (for OpenWebUI):
+
+```sh
+docker build -f Dockerfile.mcpo -t netbox-mcp-server:mcpo .
+docker run --rm -e NETBOX_URL=... -e NETBOX_TOKEN=... -e MCPO_API_KEY=... -p 8000:8000 netbox-mcp-server:mcpo
+```
+
+> Use the `MCPO_API_KEY` environment variable if want to set a API KEY.
+
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
