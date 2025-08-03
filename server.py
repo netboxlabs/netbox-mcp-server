@@ -97,7 +97,7 @@ NETBOX_OBJECT_TYPES = {
     "webhooks": "extras/webhooks",
 }
 
-mcp = FastMCP("NetBox", log_level="DEBUG")
+mcp = FastMCP("NetBox", log_level=os.getenv("LOG_LEVEL", "INFO"))
 netbox = None
 
 @mcp.tool()
