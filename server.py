@@ -1,6 +1,10 @@
 from mcp.server.fastmcp import FastMCP
 from netbox_client import NetBoxRestClient
 import os
+import argparse
+import sys
+import asyncio
+from dotenv import load_dotenv
 
 # Mapping of simple object names to API endpoints
 NETBOX_OBJECT_TYPES = {
@@ -97,10 +101,11 @@ NETBOX_OBJECT_TYPES = {
     "webhooks": "extras/webhooks",
 }
 
-mcp = FastMCP("NetBox", log_level="DEBUG")
+# Global variables
+app = FastMCP("NetBox")
 netbox = None
 
-@mcp.tool()
+@app.tool()
 def netbox_get_objects(object_type: str, filters: dict):
     """
     Get objects from NetBox based on their type and filters
@@ -204,7 +209,7 @@ def netbox_get_objects(object_type: str, filters: dict):
     # Make API call
     return netbox.get(endpoint, params=filters)
 
-@mcp.tool()
+@app.tool()
 def netbox_get_object_by_id(object_type: str, object_id: int):
     """
     Get detailed information about a specific NetBox object by its ID.
@@ -226,7 +231,7 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     
     return netbox.get(endpoint)
 
-@mcp.tool()
+@app.tool()
 def netbox_get_changelogs(filters: dict):
     """
     Get object change records (changelogs) from NetBox based on filters.
@@ -275,15 +280,102 @@ def netbox_get_changelogs(filters: dict):
     # Make API call
     return netbox.get(endpoint, params=filters)
 
-if __name__ == "__main__":
-    # Load NetBox configuration from environment variables
-    netbox_url = os.getenv("NETBOX_URL")
-    netbox_token = os.getenv("NETBOX_TOKEN")
+
+def load_config():
+    """Load configuration from .env file and CLI arguments."""
+    # Load environment variables from .env file
+    load_dotenv()
     
-    if not netbox_url or not netbox_token:
-        raise ValueError("NETBOX_URL and NETBOX_TOKEN environment variables must be set")
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="NetBox MCP Server")
+    parser.add_argument(
+        "--netbox-url",
+        default=os.getenv("NETBOX_URL"),
+        help="NetBox instance URL (default: from NETBOX_URL env var)"
+    )
+    parser.add_argument(
+        "--netbox-token",
+        default=os.getenv("NETBOX_TOKEN"),
+        help="NetBox API token (default: from NETBOX_TOKEN env var)"
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default=os.getenv("LOG_LEVEL", "INFO"),
+        help="Log level (default: INFO)"
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default=os.getenv("MCP_TRANSPORT", "stdio"),
+        help="MCP transport method (default: stdio)"
+    )
+    parser.add_argument(
+        "--host",
+        default=os.getenv("MCP_SERVER_HOST", "localhost"),
+        help="Server host for HTTP transport (default: localhost)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("MCP_SERVER_PORT", "8000")),
+        help="Server port for HTTP transport (default: 8000)"
+    )
+    parser.add_argument(
+        "--verify-ssl",
+        action="store_true",
+        default=os.getenv("VERIFY_SSL", "true").lower() == "true",
+        help="Verify SSL certificates (default: true)"
+    )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_false",
+        dest="verify_ssl",
+        help="Disable SSL certificate verification"
+    )
+    
+    return parser.parse_args()
+
+
+def initialize_netbox_client(config):
+    """Initialize the NetBox client with the given configuration."""
+    # Validate required configuration
+    if not config.netbox_url:
+        raise ValueError("NetBox URL must be provided via --netbox-url or NETBOX_URL environment variable")
+    if not config.netbox_token:
+        raise ValueError("NetBox token must be provided via --netbox-token or NETBOX_TOKEN environment variable")
     
     # Initialize NetBox client
-    netbox = NetBoxRestClient(url=netbox_url, token=netbox_token)
+    global netbox
+    netbox = NetBoxRestClient(
+        url=config.netbox_url,
+        token=config.netbox_token,
+        verify_ssl=config.verify_ssl
+    )
+
+
+def main():
+    """Main entry point for the server."""
+    # Load configuration from .env and CLI arguments
+    config = load_config()
     
-    mcp.run(transport="stdio")
+    # Initialize NetBox client
+    initialize_netbox_client(config)
+    
+    # Run the server with the specified transport
+    if config.transport == "stdio":
+        # Run with stdio transport (default FastMCP behavior)
+        app.run()
+    elif config.transport == "http":
+        # Run with HTTP transport
+        # FastMCP supports this via the run method with transport parameter
+        app.run(transport="streamable-http")
+    else:
+        raise ValueError(f"Unsupported transport: {config.transport}")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"Error starting NetBox MCP Server: {e}", file=sys.stderr)
+        sys.exit(1)
