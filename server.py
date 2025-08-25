@@ -4,6 +4,7 @@ import os
 import argparse
 import sys
 import asyncio
+import logging
 from dotenv import load_dotenv
 
 # Mapping of simple object names to API endpoints
@@ -104,6 +105,36 @@ NETBOX_OBJECT_TYPES = {
 # Global variables
 app = FastMCP("NetBox")
 netbox = None
+logger = logging.getLogger(__name__)
+
+def setup_logging(log_level: str):
+    """Setup logging configuration."""
+    # Convert string level to logging constant
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f'Invalid log level: {log_level}')
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Set specific logger levels
+    logger.setLevel(numeric_level)
+    
+    # Configure third-party loggers
+    if numeric_level == logging.DEBUG:
+        # Enable debug logging for requests when in debug mode
+        logging.getLogger("requests").setLevel(logging.DEBUG)
+        logging.getLogger("urllib3").setLevel(logging.DEBUG)
+    else:
+        # Suppress noisy third-party loggers
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+    
+    logger.info(f"Logging configured at {log_level.upper()} level")
 
 @app.tool()
 def netbox_get_objects(object_type: str, filters: dict):
@@ -198,16 +229,49 @@ def netbox_get_objects(object_type: str, filters: dict):
     
     See NetBox API documentation for filtering options for each object type.
     """
+    logger.info(f"netbox_get_objects called with object_type='{object_type}', filters={filters}")
+    logger.debug(f"Filters type: {type(filters)}")
+    
+    # Handle filters parameter - it might be a JSON string that needs parsing
+    processed_filters = filters
+    if isinstance(filters, str):
+        try:
+            import json
+            processed_filters = json.loads(filters)
+            logger.debug(f"Parsed JSON filters string into dict: {processed_filters}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse filters as JSON: {e}. Using as-is: {filters}")
+            processed_filters = filters
+    
+    logger.debug(f"Final processed filters: {processed_filters} (type: {type(processed_filters)})")
+    
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
+        logger.error(f"Invalid object_type '{object_type}' requested")
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
         
     # Get API endpoint from mapping
     endpoint = NETBOX_OBJECT_TYPES[object_type]
+    logger.debug(f"Mapped object_type '{object_type}' to endpoint '{endpoint}'")
         
     # Make API call
-    return netbox.get(endpoint, params=filters)
+    try:
+        logger.debug(f"Making NetBox API call to endpoint '{endpoint}' with params: {processed_filters}")
+        result = netbox.get(endpoint, params=processed_filters)
+        
+        if isinstance(result, list):
+            logger.info(f"Successfully retrieved {len(result)} {object_type} objects from NetBox")
+        else:
+            logger.info(f"Successfully retrieved {object_type} object from NetBox")
+        
+        logger.debug(f"NetBox API response: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to retrieve {object_type} from NetBox: {str(e)}")
+        logger.debug("Full exception details:", exc_info=True)
+        raise
 
 @app.tool()
 def netbox_get_object_by_id(object_type: str, object_id: int):
@@ -221,15 +285,28 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     Returns:
         Complete object details
     """
+    logger.info(f"netbox_get_object_by_id called with object_type='{object_type}', object_id={object_id}")
+    
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
+        logger.error(f"Invalid object_type '{object_type}' requested for ID lookup")
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
         
     # Get API endpoint from mapping
     endpoint = f"{NETBOX_OBJECT_TYPES[object_type]}/{object_id}"
+    logger.debug(f"Constructed endpoint '{endpoint}' for {object_type} ID {object_id}")
     
-    return netbox.get(endpoint)
+    try:
+        logger.debug(f"Making NetBox API call to retrieve {object_type} with ID {object_id}")
+        result = netbox.get(endpoint)
+        logger.info(f"Successfully retrieved {object_type} object with ID {object_id}")
+        logger.debug(f"NetBox API response: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to retrieve {object_type} with ID {object_id} from NetBox: {str(e)}")
+        raise
 
 @app.tool()
 def netbox_get_changelogs(filters: dict):
@@ -275,10 +352,26 @@ def netbox_get_changelogs(filters: dict):
     - postchange_data: The object's data after the change (null for deletions)
     - time: The timestamp when the change was made
     """
-    endpoint = "core/object-changes"
+    logger.info(f"netbox_get_changelogs called with filters={filters}")
     
-    # Make API call
-    return netbox.get(endpoint, params=filters)
+    endpoint = "core/object-changes"
+    logger.debug(f"Using changelog endpoint '{endpoint}'")
+    
+    try:
+        logger.debug(f"Making NetBox API call to retrieve changelogs with filters: {filters}")
+        result = netbox.get(endpoint, params=filters)
+        
+        if isinstance(result, list):
+            logger.info(f"Successfully retrieved {len(result)} changelog entries from NetBox")
+        else:
+            logger.info("Successfully retrieved changelog data from NetBox")
+        
+        logger.debug(f"NetBox API response: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to retrieve changelogs from NetBox: {str(e)}")
+        raise
 
 
 def load_config():
@@ -339,43 +432,99 @@ def load_config():
 
 def initialize_netbox_client(config):
     """Initialize the NetBox client with the given configuration."""
+    logger.info("Initializing NetBox client...")
+    
     # Validate required configuration
     if not config.netbox_url:
+        logger.error("NetBox URL not provided")
         raise ValueError("NetBox URL must be provided via --netbox-url or NETBOX_URL environment variable")
     if not config.netbox_token:
+        logger.error("NetBox token not provided")
         raise ValueError("NetBox token must be provided via --netbox-token or NETBOX_TOKEN environment variable")
+    
+    logger.debug(f"NetBox URL: {config.netbox_url}")
+    logger.debug(f"SSL verification: {config.verify_ssl}")
+    logger.debug(f"Token provided: {'Yes' if config.netbox_token else 'No'}")
     
     # Initialize NetBox client
     global netbox
-    netbox = NetBoxRestClient(
-        url=config.netbox_url,
-        token=config.netbox_token,
-        verify_ssl=config.verify_ssl
-    )
+    try:
+        netbox = NetBoxRestClient(
+            url=config.netbox_url,
+            token=config.netbox_token,
+            verify_ssl=config.verify_ssl
+        )
+        logger.info(f"NetBox client initialized successfully for {config.netbox_url}")
+    except Exception as e:
+        logger.error(f"Failed to initialize NetBox client: {str(e)}")
+        raise
 
 
 def main():
     """Main entry point for the server."""
+    print("Starting NetBox MCP Server...")
+    
     # Load configuration from .env and CLI arguments
     config = load_config()
+    
+    # Setup logging first
+    setup_logging(config.log_level)
+    
+    logger.info("="*60)
+    logger.info("NetBox MCP Server Starting")
+    logger.info("="*60)
+    
+    # Log configuration details
+    logger.info(f"Configuration loaded:")
+    logger.info(f"  Transport: {config.transport}")
+    logger.info(f"  Log Level: {config.log_level}")
+    logger.info(f"  NetBox URL: {config.netbox_url}")
+    logger.info(f"  SSL Verification: {config.verify_ssl}")
+    
+    if config.transport == "http":
+        logger.info(f"  HTTP Host: {config.host}")
+        logger.info(f"  HTTP Port: {config.port}")
     
     # Initialize NetBox client
     initialize_netbox_client(config)
     
+    # Log available tools
+    logger.info("Available MCP tools:")
+    logger.info("  - netbox_get_objects: Get objects from NetBox by type and filters")
+    logger.info("  - netbox_get_object_by_id: Get specific NetBox object by ID")
+    logger.info("  - netbox_get_changelogs: Get NetBox change records")
+    
     # Run the server with the specified transport
+    logger.info(f"Starting MCP server with {config.transport} transport...")
+    
     if config.transport == "stdio":
+        logger.info("Server ready for stdio communication")
         # Run with stdio transport (default FastMCP behavior)
         app.run()
     elif config.transport == "http":
+        logger.info(f"Server will be available at http://{config.host}:{config.port}")
         # Run with HTTP transport
         # FastMCP supports this via the run method with transport parameter
         app.run(transport="streamable-http")
     else:
+        logger.error(f"Unsupported transport: {config.transport}")
         raise ValueError(f"Unsupported transport: {config.transport}")
 
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        print("\nServer interrupted by user", file=sys.stderr)
+        if 'logger' in globals():
+            logger.info("Server shutdown requested by user")
+        sys.exit(0)
     except Exception as e:
-        print(f"Error starting NetBox MCP Server: {e}", file=sys.stderr)
+        error_msg = f"Error starting NetBox MCP Server: {e}"
+        print(error_msg, file=sys.stderr)
+        
+        # Log the error if logger is available
+        if 'logger' in globals():
+            logger.error(error_msg)
+            logger.debug("Full error details:", exc_info=True)
+        
         sys.exit(1)
