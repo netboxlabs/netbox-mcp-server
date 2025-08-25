@@ -8,6 +8,7 @@ This module provides a base class for NetBox client implementations and a REST A
 import abc
 from typing import Any, Dict, List, Optional, Union
 import requests
+import logging
 
 
 class NetBoxClientBase(abc.ABC):
@@ -156,16 +157,33 @@ class NetBoxRestClient(NetBoxClientBase):
             token: API token for authentication
             verify_ssl: Whether to verify SSL certificates
         """
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
         self.base_url = url.rstrip('/')
         self.api_url = f"{self.base_url}/api"
         self.token = token
         self.verify_ssl = verify_ssl
+        
+        self.logger.debug(f"Initializing NetBox REST client for {self.base_url}")
+        self.logger.debug(f"SSL verification: {verify_ssl}")
+        
         self.session = requests.Session()
+        
+        # Extract hostname from URL for Host header
+        from urllib.parse import urlparse
+        parsed_url = urlparse(self.base_url)
+        host_header = parsed_url.netloc
+        
         self.session.headers.update({
             'Authorization': f'Token {token}',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Host': host_header,
+            'User-Agent': 'NetBox-MCP-Server/1.0',
         })
+        
+        self.logger.debug(f"Session headers configured: {dict(self.session.headers)}")
+        self.logger.debug("NetBox REST client initialized successfully")
     
     def _build_url(self, endpoint: str, id: Optional[int] = None) -> str:
         """Build the full URL for an API request."""
@@ -190,14 +208,48 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params, verify=self.verify_ssl)
-        response.raise_for_status()
+        self.logger.debug(f"Built URL: {url}")
+        self.logger.debug(f"Request params: {params}")
+        self.logger.debug(f"Request headers: {dict(self.session.headers)}")
         
-        data = response.json()
-        if id is None and 'results' in data:
-            # Handle paginated results
-            return data['results']
-        return data
+        try:
+            response = self.session.get(url, params=params, verify=self.verify_ssl)
+            
+            # Log detailed request information
+            self.logger.debug(f"Final request URL: {response.url}")
+            self.logger.debug(f"Request method: {response.request.method}")
+            self.logger.debug(f"Request headers sent: {dict(response.request.headers)}")
+            self.logger.debug(f"Response status: {response.status_code}")
+            self.logger.debug(f"Response headers: {dict(response.headers)}")
+            
+            # Log response content for debugging
+            if response.status_code >= 400:
+                self.logger.error(f"Error response body: {response.text}")
+            else:
+                # Only log first 500 chars of successful response to avoid spam
+                response_preview = response.text[:500] + "..." if len(response.text) > 500 else response.text
+                self.logger.debug(f"Response body preview: {response_preview}")
+            
+            response.raise_for_status()
+            
+            data = response.json()
+            if id is None and 'results' in data:
+                # Handle paginated results
+                result_count = len(data['results'])
+                total_count = data.get('count', result_count)
+                self.logger.debug(f"Retrieved {result_count} objects from paginated response (total: {total_count})")
+                return data['results']
+            else:
+                self.logger.debug("Retrieved single object")
+                return data
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"HTTP request failed for {url}: {str(e)}")
+            self.logger.error(f"Request details - Method: GET, URL: {url}, Params: {params}")
+            if hasattr(e, 'response') and e.response is not None:
+                self.logger.error(f"Response status: {e.response.status_code}")
+                self.logger.error(f"Response body: {e.response.text}")
+            raise
     
     def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
