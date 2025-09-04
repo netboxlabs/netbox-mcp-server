@@ -12,7 +12,11 @@ A Python client library for interacting with NetBox, providing both a base abstr
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+# Using UV (recommended)
+uv sync
+
+# Or using pip
+pip install -e .
 ```
 
 ## Usage

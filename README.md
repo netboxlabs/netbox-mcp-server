@@ -16,7 +16,14 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 
 1. Create a read-only API token in NetBox with sufficient permissions for the tool to access the data you want to make available via MCP.
 
-2. Install dependencies: `uv add -r requirements.txt`
+2. Install dependencies:
+```bash
+# Using UV (recommended)
+uv sync
+
+# Or using pip
+pip install -e .
+```
 
 3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run server.py`
 
