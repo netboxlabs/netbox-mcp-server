@@ -31,7 +31,7 @@ pip install -e .
 
 ```json
 {
-  "mcpServers": {
+    "mcpServers": {
         "netbox": {
             "command": "uv",
             "args": [
@@ -45,6 +45,7 @@ pip install -e .
                 "NETBOX_TOKEN": "<your-api-token>"
             }
         }
+    }
 }
 ```
 > On Windows, use full, escaped path to your instance, such as `C:\\Users\\myuser\\.local\\bin\\uv` and `C:\\Users\\myuser\\netbox-mcp-server`. 
