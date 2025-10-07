@@ -65,6 +65,10 @@ pip install -e .
 > Show me all configuration changes to the core router in the last month
 ```
 
+### SSL Verification (Self-Signed Certificates)
+
+By default, SSL certificate verification is enabled. If your NetBox instance uses a self-signed certificate, you can disable SSL verification by setting the `VERIFY_SSL` environment variable to `FALSE`, `NO`, `0`, or `OFF`:
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
