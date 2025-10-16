@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from netbox_client import NetBoxRestClient
 import os
 
@@ -97,10 +97,10 @@ NETBOX_OBJECT_TYPES = {
     "webhooks": "extras/webhooks",
 }
 
-mcp = FastMCP("NetBox", log_level="DEBUG")
+mcp = FastMCP("NetBox")
 netbox = None
 
-@mcp.tool()
+@mcp.tool
 def netbox_get_objects(object_type: str, filters: dict):
     """
     Get objects from NetBox based on their type and filters
@@ -204,7 +204,7 @@ def netbox_get_objects(object_type: str, filters: dict):
     # Make API call
     return netbox.get(endpoint, params=filters)
 
-@mcp.tool()
+@mcp.tool
 def netbox_get_object_by_id(object_type: str, object_id: int):
     """
     Get detailed information about a specific NetBox object by its ID.
@@ -226,7 +226,7 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     
     return netbox.get(endpoint)
 
-@mcp.tool()
+@mcp.tool
 def netbox_get_changelogs(filters: dict):
     """
     Get object change records (changelogs) from NetBox based on filters.
@@ -279,11 +279,12 @@ if __name__ == "__main__":
     # Load NetBox configuration from environment variables
     netbox_url = os.getenv("NETBOX_URL")
     netbox_token = os.getenv("NETBOX_TOKEN")
-    
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+
     if not netbox_url or not netbox_token:
         raise ValueError("NETBOX_URL and NETBOX_TOKEN environment variables must be set")
-    
+
     # Initialize NetBox client
     netbox = NetBoxRestClient(url=netbox_url, token=netbox_token)
-    
-    mcp.run(transport="stdio")
+
+    mcp.run(transport="stdio", log_level=log_level)
