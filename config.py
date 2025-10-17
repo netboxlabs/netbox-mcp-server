@@ -1,6 +1,8 @@
 """Configuration management for NetBox MCP Server."""
 
-from typing import Literal
+import logging
+import logging.config
+from typing import Any, Literal
 
 from pydantic import AnyUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -97,18 +99,15 @@ class Settings(BaseSettings):
         }
 
 
-def configure_logging(log_level: str) -> None:
+def configure_logging(
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+) -> None:
     """
     Configure structured logging using dictConfig.
 
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
-    import logging
-    import logging.config
-    from typing import Any
-
-    # Base configuration
     config: dict[str, Any] = {
         "version": 1,
         "disable_existing_loggers": False,
