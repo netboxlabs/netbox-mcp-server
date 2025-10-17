@@ -91,6 +91,106 @@ Add the server configuration to your Claude Desktop config file. On Mac, edit `~
 > Show me all configuration changes to the core router in the last month
 ```
 
+## Configuration
+
+The server supports multiple configuration sources with the following precedence (highest to lowest):
+
+1. **Command-line arguments** (highest priority)
+2. **Environment variables**
+3. **`.env` file** in the project root
+4. **Default values** (lowest priority)
+
+### Configuration Reference
+
+| Setting | Type | Default | Required | Description |
+|---------|------|---------|----------|-------------|
+| `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
+| `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
+| `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
+| `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
+| `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
+| `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
+| `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
+
+### Transport Examples
+
+#### Stdio Transport (Claude Desktop/Code)
+
+For local Claude Desktop or Claude Code usage with stdio transport:
+
+```json
+{
+    "mcpServers": {
+        "netbox": {
+            "command": "uv",
+            "args": ["--directory", "/path/to/netbox-mcp-server", "run", "server.py"],
+            "env": {
+                "NETBOX_URL": "https://netbox.example.com/",
+                "NETBOX_TOKEN": "<your-api-token>"
+            }
+        }
+    }
+}
+```
+
+#### HTTP Transport (Web Clients)
+
+For web-based MCP clients using HTTP/SSE transport:
+
+```bash
+# Using environment variables
+export NETBOX_URL=https://netbox.example.com/
+export NETBOX_TOKEN=<your-api-token>
+export TRANSPORT=http
+export HOST=127.0.0.1
+export PORT=8000
+
+uv run server.py
+
+# Or using CLI arguments
+uv run server.py \
+  --netbox-url https://netbox.example.com/ \
+  --netbox-token <your-api-token> \
+  --transport http \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+### Example .env File
+
+Create a `.env` file in the project root:
+
+```env
+# Core NetBox Configuration
+NETBOX_URL=https://netbox.example.com/
+NETBOX_TOKEN=your_api_token_here
+
+# Transport Configuration (optional, defaults to stdio)
+TRANSPORT=stdio
+
+# HTTP Transport Settings (only used if TRANSPORT=http)
+# HOST=127.0.0.1
+# PORT=8000
+
+# Security (optional, defaults to true)
+VERIFY_SSL=true
+
+# Logging (optional, defaults to INFO)
+LOG_LEVEL=INFO
+```
+
+### CLI Arguments
+
+All configuration options can be overridden via CLI arguments:
+
+```bash
+uv run server.py --help
+
+# Common examples:
+uv run server.py --log-level DEBUG --no-verify-ssl  # Development
+uv run server.py --transport http --port 9000       # Custom HTTP port
+```
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
