@@ -1,9 +1,11 @@
 import argparse
-import os
+import logging
+import sys
 from typing import Any
 
 from fastmcp import FastMCP
 
+from config import Settings, configure_logging
 from netbox_client import NetBoxRestClient
 
 
@@ -369,17 +371,50 @@ def netbox_get_changelogs(filters: dict):
 
 
 if __name__ == "__main__":
-    # Load NetBox configuration from environment variables
-    netbox_url = os.getenv("NETBOX_URL")
-    netbox_token = os.getenv("NETBOX_TOKEN")
-    log_level = os.getenv("LOG_LEVEL", "INFO")
+    cli_overlay: dict[str, Any] = parse_cli_args()
 
-    if not netbox_url or not netbox_token:
-        raise ValueError(
-            "NETBOX_URL and NETBOX_TOKEN environment variables must be set"
+    try:
+        settings = Settings(**cli_overlay)
+    except Exception as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    configure_logging(settings.log_level)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting NetBox MCP Server")
+    logger.info(f"Effective configuration: {settings.get_effective_config_summary()}")
+
+    if not settings.verify_ssl:
+        logger.warning(
+            "SSL certificate verification is DISABLED. "
+            "This is insecure and should only be used for testing."
         )
 
-    # Initialize NetBox client
-    netbox = NetBoxRestClient(url=netbox_url, token=netbox_token)
+    if settings.transport == "http" and settings.host not in ["127.0.0.1", "localhost"]:
+        logger.info(
+            f"HTTP transport is bound to {settings.host}:{settings.port}. "
+            "Ensure this is secured with TLS/reverse proxy if exposed to network."
+        )
 
-    mcp.run(transport="stdio", log_level=log_level)
+    try:
+        netbox = NetBoxRestClient(
+            url=str(settings.netbox_url),
+            token=settings.netbox_token.get_secret_value(),
+            verify_ssl=settings.verify_ssl,
+        )
+        logger.debug("NetBox client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize NetBox client: {e}")
+        sys.exit(1)
+
+    try:
+        if settings.transport == "stdio":
+            logger.info("Starting stdio transport")
+            mcp.run(transport="stdio")
+        elif settings.transport == "http":
+            logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
+            mcp.run(transport="http", host=settings.host, port=settings.port)
+    except Exception as e:
+        logger.error(f"Failed to start MCP server: {e}")
+        sys.exit(1)
