@@ -53,6 +53,7 @@ venv.bak/
 htmlcov/
 .tox/
 .nox/
+TEST_REPORT_*.md
 
 # Type checking
 .mypy_cache/
