@@ -95,3 +95,52 @@ class Settings(BaseSettings):
             "verify_ssl": self.verify_ssl,
             "log_level": self.log_level,
         }
+
+
+def configure_logging(log_level: str) -> None:
+    """
+    Configure structured logging using dictConfig.
+
+    Args:
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    """
+    import logging
+    import logging.config
+    from typing import Any
+
+    # Base configuration
+    config: dict[str, Any] = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "console": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "console",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            # Suppress noisy HTTP client logs unless DEBUG
+            "urllib3": {
+                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
+            },
+            "httpx": {
+                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
+            },
+            "requests": {
+                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
+            },
+        },
+        "root": {
+            "level": log_level,
+            "handlers": ["console"],
+        },
+    }
+
+    logging.config.dictConfig(config)
