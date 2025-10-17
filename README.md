@@ -32,6 +32,8 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 
 ### Claude Code
 
+#### Stdio Transport (Default)
+
 Add the server using the `claude mcp add` command:
 
 ```bash
@@ -49,6 +51,32 @@ claude mcp add --transport stdio netbox \
 - Use `--scope user` to make it available across all your projects (default is `local`)
 
 After adding, verify with `/mcp` in Claude Code or `claude mcp list` in your terminal.
+
+#### HTTP Transport
+
+For HTTP transport, first start the server manually:
+
+```bash
+# Start the server with HTTP transport (using .env or environment variables)
+NETBOX_URL=https://netbox.example.com/ \
+NETBOX_TOKEN=<your-api-token> \
+TRANSPORT=http \
+uv run server.py
+```
+
+Then add the running server to Claude Code:
+
+```bash
+# Add the HTTP MCP server (note: URL must include http:// or https:// prefix)
+claude mcp add --transport http netbox http://127.0.0.1:8000/mcp
+```
+
+**Important notes:**
+
+- The URL **must** include the protocol prefix (`http://` or `https://`)
+- The default endpoint is `/mcp` when using HTTP transport
+- The server must be running before Claude Code can connect
+- Verify the connection with `claude mcp list` - you should see a ✓ next to the server name
 
 ### Claude Desktop
 
