@@ -1,9 +1,12 @@
 """Tests for configuration management."""
 
+import sys
+
 import pytest
 from pydantic import ValidationError
 
 from config import Settings
+from server import parse_cli_args
 
 
 def test_settings_requires_netbox_url():
@@ -49,3 +52,33 @@ def test_settings_masks_secrets_in_summary():
 
     assert summary["netbox_token"] == "***REDACTED***"
     assert "super-secret-token" not in str(summary)
+
+
+# ===== CLI Argument Parsing Tests =====
+
+
+def test_parse_cli_args_multiple():
+    """Test that multiple arguments are captured."""
+
+    original_argv = sys.argv
+    try:
+        sys.argv = [
+            "server.py",
+            "--netbox-url",
+            "https://test.example.com/",
+            "--transport",
+            "http",
+            "--port",
+            "9000",
+            "--log-level",
+            "DEBUG",
+            "--no-verify-ssl",
+        ]
+        result = parse_cli_args()
+        assert result["netbox_url"] == "https://test.example.com/"
+        assert result["transport"] == "http"
+        assert result["port"] == 9000
+        assert result["log_level"] == "DEBUG"
+        assert result["verify_ssl"] is False
+    finally:
+        sys.argv = original_argv
