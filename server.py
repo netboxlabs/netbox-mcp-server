@@ -239,12 +239,11 @@ def validate_filters(filters: dict) -> None:
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
         if len(parts) == 2 and parts[-1] in VALID_SUFFIXES:
             continue
-
-        # Block multi-hop patterns
+        # Block multi-hop patterns and invalid suffixes
         if len(parts) >= 2:
             raise ValueError(
                 f"Invalid filter '{filter_name}': Multi-hop relationship "
-                f"traversal not supported. Use direct field filters like "
+                f"traversal or invalid lookup suffix not supported. Use direct field filters like "
                 f"'site_id' or two-step queries."
             )
 
