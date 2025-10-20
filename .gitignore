@@ -40,6 +40,7 @@ venv.bak/
 .project
 .pydevproject
 .settings/
+.obsidian/
 
 # macOS
 .DS_Store
@@ -84,3 +85,4 @@ logs/
 *.bak
 *.swp
 *.swo
+.plans/*
