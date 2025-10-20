@@ -6,7 +6,7 @@ This module provides a base class for NetBox client implementations and a REST A
 """
 
 import abc
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 import requests
 
@@ -24,8 +24,8 @@ class NetBoxClientBase(abc.ABC):
         self,
         endpoint: str,
         id: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        params: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox.
 
@@ -49,7 +49,7 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def create(self, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new object in NetBox.
 
@@ -63,7 +63,7 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def update(self, endpoint: str, id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update(self, endpoint: str, id: int, data: dict[str, Any]) -> dict[str, Any]:
         """
         Update an existing object in NetBox.
 
@@ -93,8 +93,8 @@ class NetBoxClientBase(abc.ABC):
 
     @abc.abstractmethod
     def bulk_create(
-        self, endpoint: str, data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, endpoint: str, data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Create multiple objects in NetBox.
 
@@ -109,8 +109,8 @@ class NetBoxClientBase(abc.ABC):
 
     @abc.abstractmethod
     def bulk_update(
-        self, endpoint: str, data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, endpoint: str, data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Update multiple objects in NetBox.
 
@@ -124,7 +124,7 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def bulk_delete(self, endpoint: str, ids: List[int]) -> bool:
+    def bulk_delete(self, endpoint: str, ids: list[int]) -> bool:
         """
         Delete multiple objects from NetBox.
 
@@ -199,8 +199,8 @@ class NetBoxRestClient(NetBoxClientBase):
         self,
         endpoint: str,
         id: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        params: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox via the REST API.
 
@@ -226,7 +226,7 @@ class NetBoxRestClient(NetBoxClientBase):
 
         return response.json()
 
-    def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def create(self, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new object in NetBox via the REST API.
 
@@ -245,7 +245,7 @@ class NetBoxRestClient(NetBoxClientBase):
         response.raise_for_status()
         return response.json()
 
-    def update(self, endpoint: str, id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update(self, endpoint: str, id: int, data: dict[str, Any]) -> dict[str, Any]:
         """
         Update an existing object in NetBox via the REST API.
 
@@ -285,8 +285,8 @@ class NetBoxRestClient(NetBoxClientBase):
         return response.status_code == 204
 
     def bulk_create(
-        self, endpoint: str, data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, endpoint: str, data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Create multiple objects in NetBox via the REST API.
 
@@ -306,8 +306,8 @@ class NetBoxRestClient(NetBoxClientBase):
         return response.json()
 
     def bulk_update(
-        self, endpoint: str, data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, endpoint: str, data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Update multiple objects in NetBox via the REST API.
 
@@ -326,7 +326,7 @@ class NetBoxRestClient(NetBoxClientBase):
         response.raise_for_status()
         return response.json()
 
-    def bulk_delete(self, endpoint: str, ids: List[int]) -> bool:
+    def bulk_delete(self, endpoint: str, ids: list[int]) -> bool:
         """
         Delete multiple objects from NetBox via the REST API.
 
