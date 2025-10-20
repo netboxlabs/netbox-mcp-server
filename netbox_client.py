@@ -38,13 +38,9 @@ class NetBoxClientBase(abc.ABC):
             For single object queries (with id): Returns the object dict
             For list queries (without id): Returns the full paginated response dict with:
                 - count: Total number of objects matching the query
-                         ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY
                 - next: URL to next page (or null if no more pages)
-                        ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
                 - previous: URL to previous page (or null if on first page)
-                            ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
                 - results: Array of objects for this page
-                           ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
         """
         pass
 
