@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
@@ -12,16 +13,18 @@ from server import parse_cli_args
 
 def test_settings_requires_netbox_url():
     """Test that Settings requires NETBOX_URL."""
-
-    with pytest.raises(ValidationError, match="netbox_url"):
-        Settings(netbox_token="test-token")
+    # Isolate from .env file by patching model_config
+    with patch.dict("os.environ", {}, clear=True):
+        with pytest.raises(ValidationError, match="netbox_url"):
+            Settings(netbox_token="test-token", _env_file=None)
 
 
 def test_settings_requires_netbox_token():
     """Test that Settings requires NETBOX_TOKEN."""
-
-    with pytest.raises(ValidationError, match="netbox_token"):
-        Settings(netbox_url="https://netbox.example.com/")
+    # Isolate from .env file by patching model_config
+    with patch.dict("os.environ", {}, clear=True):
+        with pytest.raises(ValidationError, match="netbox_token"):
+            Settings(netbox_url="https://netbox.example.com/", _env_file=None)
 
 
 def test_settings_validates_url_format():

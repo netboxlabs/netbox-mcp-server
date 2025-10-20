@@ -1,9 +1,10 @@
 import argparse
 import logging
 import sys
-from typing import Any
+from typing import Any, Annotated
 
 from fastmcp import FastMCP
+from pydantic import Field
 
 from config import Settings, configure_logging
 from netbox_client import NetBoxRestClient
@@ -250,7 +251,11 @@ def validate_filters(filters: dict) -> None:
 
 @mcp.tool
 def netbox_get_objects(
-    object_type: str, filters: dict, fields: list[str] | None = None
+    object_type: str,
+    filters: dict,
+    fields: list[str] | None = None,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+    offset: Annotated[int, Field(default=0, ge=0)] = 0,
 ):
     """
     Get objects from NetBox based on their type and filters
@@ -276,6 +281,13 @@ def netbox_get_objects(
                 Examples: ['id', 'name', 'status'], ['address', 'dns_name', 'description']
                 Uses NetBox's native field filtering via ?fields= parameter
                 Always try to use this to reduce the amount of data returned by the API call
+
+        limit: Maximum results to return (default 5, max 100)
+               Start with default, increase only if needed
+               Response includes 'count' field with total matches
+
+        offset: Skip this many results for pagination (default 0)
+                Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
 
     Valid object_type values:
 
@@ -373,11 +385,16 @@ def netbox_get_objects(
     # Get API endpoint from mapping
     endpoint = NETBOX_OBJECT_TYPES[object_type]
 
+    # Build params with pagination (parameters override filters dict)
+    params = filters.copy()
+    params["limit"] = limit
+    params["offset"] = offset
+
     if fields:
-        filters["fields"] = ",".join(fields)
+        params["fields"] = ",".join(fields)
 
     # Make API call
-    return netbox.get(endpoint, params=filters)
+    return netbox.get(endpoint, params=params)
 
 
 @mcp.tool
