@@ -278,7 +278,7 @@ def netbox_get_objects(
 
         fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
-                Field filtering reduces response payload by 80-90% and is critical for performance.
+                Field filtering significantly reduces response payload and is critical for performance.
 
                 - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
                 - ['id', 'name'] = returns only specified fields (RECOMMENDED)
