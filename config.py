@@ -73,12 +73,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_http_transport_requirements(self) -> "Settings":
-        """Ensure host/port are set when using HTTP transport."""
-        if self.transport == "http":
-            if not self.host:
-                raise ValueError("HOST is required when TRANSPORT='http'")
-            if not self.port:
-                raise ValueError("PORT is required when TRANSPORT='http'")
+        """No additional validation needed for HTTP transport; defaults are appropriate."""
         return self
 
     def get_effective_config_summary(self) -> dict:
