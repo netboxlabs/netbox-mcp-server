@@ -336,7 +336,7 @@ def netbox_get_object_by_id(
     if fields:
         params["fields"] = ",".join(fields)
 
-    return netbox.get(endpoint, params=params if params else None)
+    return netbox.get(endpoint, params=params)
 
 
 @mcp.tool
