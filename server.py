@@ -387,15 +387,18 @@ if __name__ == "__main__":
             "This is insecure and should only be used for testing."
         )
 
-    if settings.transport == "http" and settings.host not in ["127.0.0.1", "localhost"]:
+    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:
+        logger.warning(
+            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces (IPv4/IPv6). "
+            "This is insecure and should only be used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
+        )
+    elif settings.transport == "http" and settings.host not in [
+        "127.0.0.1",
+        "localhost",
+    ]:
         logger.info(
             f"HTTP transport is bound to {settings.host}:{settings.port}. "
             "Ensure this is secured with TLS/reverse proxy if exposed to network."
-        )
-    if settings.transport == "http" and settings.host in ["0.0.0.0"]:
-        logger.warning(
-            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces. "
-            "This is insecure and should only be used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
         )
 
     try:
