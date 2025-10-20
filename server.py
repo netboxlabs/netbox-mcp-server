@@ -188,6 +188,66 @@ mcp = FastMCP("NetBox")
 netbox = None
 
 
+def validate_filters(filters: dict) -> None:
+    """
+    Validate that filters don't use multi-hop relationship traversal.
+
+    NetBox API does not support nested relationship queries like:
+    - device__site_id (filtering by related object's field)
+    - interface__device__site (multiple relationship hops)
+
+    Valid patterns:
+    - Direct field filters: site_id, name, status
+    - Lookup expressions: name__ic, status__in, id__gt
+
+    Args:
+        filters: Dictionary of filter parameters
+
+    Raises:
+        ValueError: If filter uses invalid multi-hop relationship traversal
+    """
+    VALID_SUFFIXES = {
+        "n",
+        "ic",
+        "nic",
+        "isw",
+        "nisw",
+        "iew",
+        "niew",
+        "ie",
+        "nie",
+        "empty",
+        "regex",
+        "iregex",
+        "lt",
+        "lte",
+        "gt",
+        "gte",
+        "in",
+    }
+
+    for filter_name in filters:
+        # Skip special parameters
+        if filter_name in ("limit", "offset", "fields", "q"):
+            continue
+
+        if "__" not in filter_name:
+            continue
+
+        parts = filter_name.split("__")
+
+        # Allow field__suffix pattern (e.g., name__ic, id__gt)
+        if len(parts) == 2 and parts[-1] in VALID_SUFFIXES:
+            continue
+        # Block multi-hop patterns and invalid suffixes
+        if len(parts) >= 2:
+            raise ValueError(
+                f"Invalid filter '{filter_name}': Multi-hop relationship "
+                f"traversal or invalid lookup suffix not supported. Use direct field filters like "
+                f"'site_id' or two-step queries."
+            )
+
+
 @mcp.tool
 def netbox_get_objects(
     object_type: str, filters: dict, fields: list[str] | None = None
@@ -197,6 +257,19 @@ def netbox_get_objects(
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
+
+                FILTER RULES:
+                Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
+                Valid: Lookups like {'name__ic': 'switch', 'id__in': [1,2,3], 'vid__gte': 100}
+                Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
+
+                Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
+                                 empty, regex, iregex, lt, lte, gt, gte, in
+
+                Two-step pattern for cross-relationship queries:
+                  sites = netbox_get_objects('sites', {'name': 'NYC'})
+                  netbox_get_objects('devices', {'site_id': sites[0]['id']})
+
         fields: Optional list of specific fields to return
                 - None or [] = returns all fields (no filtering)
                 - ['id', 'name'] = returns only specified fields
@@ -293,6 +366,9 @@ def netbox_get_objects(
     if object_type not in NETBOX_OBJECT_TYPES:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    # Validate filter patterns
+    validate_filters(filters)
 
     # Get API endpoint from mapping
     endpoint = NETBOX_OBJECT_TYPES[object_type]
