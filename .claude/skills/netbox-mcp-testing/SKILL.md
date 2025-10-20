@@ -146,6 +146,8 @@ TEST_REPORT_YYYYMMDD_HHMM_[scope].md
 
 Use `assets/TEST_REPORT_TEMPLATE.md` as the structure - it includes all required sections (Executive Summary, Tool Inventory, Detailed Test Results with pass/fail/warnings, Performance Metrics, Recommendations, and Test Coverage Summary). Ensure proposed solutions from your investigations are included in the report.
 
+**IMPORTANT**: Write test reports to the **project root directory** (not the assets folder). The template is in assets for reference, but the actual reports should be created at the root of the project.
+
 ## Efficiency Guidelines
 
 Balance comprehensive testing with time constraints:
