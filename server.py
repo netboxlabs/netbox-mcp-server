@@ -189,12 +189,20 @@ netbox = None
 
 
 @mcp.tool
-def netbox_get_objects(object_type: str, filters: dict):
+def netbox_get_objects(
+    object_type: str, filters: dict, fields: list[str] | None = None
+):
     """
     Get objects from NetBox based on their type and filters
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
+        fields: Optional list of specific fields to return
+                - None or [] = returns all fields (no filtering)
+                - ['id', 'name'] = returns only specified fields
+                Examples: ['id', 'name', 'status'], ['address', 'dns_name', 'description']
+                Uses NetBox's native field filtering via ?fields= parameter
+                Always try to use this to reduce the amount of data returned by the API call
 
     Valid object_type values:
 
@@ -289,21 +297,32 @@ def netbox_get_objects(object_type: str, filters: dict):
     # Get API endpoint from mapping
     endpoint = NETBOX_OBJECT_TYPES[object_type]
 
+    if fields:
+        filters["fields"] = ",".join(fields)
+
     # Make API call
     return netbox.get(endpoint, params=filters)
 
 
 @mcp.tool
-def netbox_get_object_by_id(object_type: str, object_id: int):
+def netbox_get_object_by_id(
+    object_type: str, object_id: int, fields: list[str] | None = None
+):
     """
     Get detailed information about a specific NetBox object by its ID.
 
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         object_id: The numeric ID of the object
+        fields: Optional list of specific fields to return
+                - None or [] = returns all fields (no filtering)
+                - ['id', 'name'] = returns only specified fields
+                Examples: ['id', 'name', 'status'], ['address', 'dns_name', 'description']
+                Uses NetBox's native field filtering via ?fields= parameter
+                Always try to use this to reduce the amount of data returned by the API call
 
     Returns:
-        Complete object details
+        Complete object details (or filtered fields if specified)
     """
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
@@ -313,7 +332,11 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     # Get API endpoint from mapping
     endpoint = f"{NETBOX_OBJECT_TYPES[object_type]}/{object_id}"
 
-    return netbox.get(endpoint)
+    params = {}
+    if fields:
+        params["fields"] = ",".join(fields)
+
+    return netbox.get(endpoint, params=params)
 
 
 @mcp.tool

@@ -119,6 +119,31 @@ Add the server configuration to your Claude Desktop config file. On Mac, edit `~
 > Show me all configuration changes to the core router in the last month
 ```
 
+### Field Filtering (Token Optimization)
+
+Both `netbox_get_objects()` and `netbox_get_object_by_id()` support an optional `fields` parameter to reduce token usage:
+
+```python
+# Without fields: ~5000 tokens for 50 devices
+devices = netbox_get_objects('devices', {'site': 'datacenter-1'})
+
+# With fields: ~500 tokens (90% reduction)
+devices = netbox_get_objects(
+    'devices',
+    {'site': 'datacenter-1'},
+    fields=['id', 'name', 'status', 'site']
+)
+```
+
+**Common field patterns:**
+
+- **Devices:** `['id', 'name', 'status', 'device_type', 'site', 'primary_ip4']`
+- **IP Addresses:** `['id', 'address', 'status', 'dns_name', 'description']`
+- **Interfaces:** `['id', 'name', 'type', 'enabled', 'device']`
+- **Sites:** `['id', 'name', 'status', 'region', 'description']`
+
+The `fields` parameter uses NetBox's native field filtering. See the [NetBox API documentation](https://docs.netbox.dev/en/stable/integrations/rest-api/) for details.
+
 ## Configuration
 
 The server supports multiple configuration sources with the following precedence (highest to lowest):
