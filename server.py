@@ -1,7 +1,7 @@
 import argparse
 import logging
 import sys
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -259,6 +259,7 @@ def netbox_get_objects(
 ):
     """
     Get objects from NetBox based on their type and filters
+
     Args:
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
@@ -276,18 +277,36 @@ def netbox_get_objects(
                   netbox_get_objects('devices', {'site_id': sites[0]['id']})
 
         fields: Optional list of specific fields to return
-                - None or [] = returns all fields (no filtering)
-                - ['id', 'name'] = returns only specified fields
-                Examples: ['id', 'name', 'status'], ['address', 'dns_name', 'description']
-                Uses NetBox's native field filtering via ?fields= parameter
-                Always try to use this to reduce the amount of data returned by the API call
+                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
+                Field filtering significantly reduces response payload and is critical for performance.
+
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
+
+                Examples:
+                - For counting: ['id'] (minimal payload)
+                - For listings: ['id', 'name', 'status']
+                - For IP addresses: ['address', 'dns_name', 'description']
+
+                Uses NetBox's native field filtering via ?fields= parameter.
+                **Always specify only the fields you actually need.**
 
         limit: Maximum results to return (default 5, max 100)
                Start with default, increase only if needed
-               Response includes 'count' field with total matches
 
         offset: Skip this many results for pagination (default 0)
                 Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
+
+    Returns:
+        Paginated response dict with the following structure:
+            - count: Total number of objects matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of objects for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
 
     Valid object_type values:
 
@@ -408,14 +427,22 @@ def netbox_get_object_by_id(
         object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
         object_id: The numeric ID of the object
         fields: Optional list of specific fields to return
-                - None or [] = returns all fields (no filtering)
-                - ['id', 'name'] = returns only specified fields
-                Examples: ['id', 'name', 'status'], ['address', 'dns_name', 'description']
-                Uses NetBox's native field filtering via ?fields= parameter
-                Always try to use this to reduce the amount of data returned by the API call
+                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
+                Field filtering reduces response payload by 80-90% and is critical for performance.
+
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
+
+                Examples:
+                - For basic info: ['id', 'name', 'status']
+                - For devices: ['id', 'name', 'status', 'site']
+                - For IP addresses: ['address', 'dns_name', 'vrf', 'status']
+
+                Uses NetBox's native field filtering via ?fields= parameter.
+                **Always specify only the fields you actually need.**
 
     Returns:
-        Complete object details (or filtered fields if specified)
+        Object dict (complete or with only requested fields based on fields parameter)
     """
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
@@ -441,7 +468,15 @@ def netbox_get_changelogs(filters: dict):
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
 
     Returns:
-        List of changelog objects matching the specified filters
+        Paginated response dict with the following structure:
+            - count: Total number of changelog entries matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of changelog entries for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
 
     Filtering options include:
     - user_id: Filter by user ID who made the change
