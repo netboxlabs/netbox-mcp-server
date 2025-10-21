@@ -173,12 +173,15 @@ NETBOX_OBJECT_TYPES = {
     "wireless-lans": "wireless/wireless-lans",
     "wireless-lan-groups": "wireless/wireless-lan-groups",
     "wireless-links": "wireless/wireless-links",
+    # Core (introduced in NetBox v3.5)
+    "data-files": "core/data-files",
+    "data-sources": "core/data-sources",
+    "jobs": "core/jobs",
     # Extras
     "config-contexts": "extras/config-contexts",
     "custom-fields": "extras/custom-fields",
     "export-templates": "extras/export-templates",
     "image-attachments": "extras/image-attachments",
-    "jobs": "extras/jobs",
     "saved-filters": "extras/saved-filters",
     "scripts": "extras/scripts",
     "tags": "extras/tags",
@@ -390,6 +393,11 @@ def netbox_get_objects(
     - wireless-lans
     - wireless-lan-groups
     - wireless-links
+
+    Core (NetBox v3.5+):
+    - data-files
+    - data-sources
+    - jobs
 
     See NetBox API documentation for filtering options for each object type.
     """
