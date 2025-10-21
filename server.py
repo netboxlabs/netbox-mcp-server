@@ -188,6 +188,18 @@ NETBOX_OBJECT_TYPES = {
     "webhooks": "extras/webhooks",
 }
 
+# Default object types for global search
+DEFAULT_SEARCH_TYPES = [
+    "devices",  # Most common search target
+    "sites",  # Site names frequently searched
+    "ip-addresses",  # IP searches very common
+    "interfaces",  # Interface names/descriptions
+    "racks",  # Rack identifiers
+    "vlans",  # VLAN names/IDs
+    "circuits",  # Circuit identifiers
+    "virtual-machines",  # VM names
+]
+
 mcp = FastMCP("NetBox")
 netbox = None
 
@@ -523,6 +535,96 @@ def netbox_get_changelogs(filters: dict):
 
     # Make API call
     return netbox.get(endpoint, params=filters)
+
+
+@mcp.tool
+def netbox_search_objects(
+    query: str,
+    object_types: list[str] | None = None,
+    fields: list[str] | None = None,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+) -> dict[str, list[dict]]:
+    """
+    Perform global search across NetBox infrastructure.
+
+    Searches names, descriptions, IP addresses, serial numbers, asset tags,
+    and other key fields across multiple object types.
+
+    Args:
+        query: Search term (device names, IPs, serial numbers, hostnames, site names)
+               Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
+        object_types: Limit search to specific types (optional)
+                     Default: ['devices', 'sites', 'ip-addresses', 'interfaces',
+                              'racks', 'vlans', 'circuits', 'virtual-machines']
+                     Examples: ['devices', 'ip-addresses', 'sites']
+        fields: Optional list of specific fields to return (reduces response size)
+                - None or [] = returns all fields (no filtering)
+                - ['id', 'name'] = returns only specified fields
+                Examples: ['id', 'name', 'status'], ['address', 'dns_name']
+                Uses NetBox's native field filtering via ?fields= parameter
+        limit: Max results per object type (default 5, max 100)
+
+    Returns:
+        Dictionary with object_type keys and list of matching objects.
+        All searched types present in result (empty list if no matches).
+
+    Example:
+        # Search for anything matching "switch"
+        results = netbox_search_objects('switch')
+        # Returns: {
+        #   'devices': [{'id': 1, 'name': 'switch-01', ...}],
+        #   'sites': [],
+        #   ...
+        # }
+
+        # Search for IP address
+        results = netbox_search_objects('192.168.1.100')
+        # Returns: {
+        #   'ip-addresses': [{'id': 42, 'address': '192.168.1.100/24', ...}],
+        #   ...
+        # }
+
+        # Limit search to specific types with field projection
+        results = netbox_search_objects(
+            'NYC',
+            object_types=['sites', 'locations'],
+            fields=['id', 'name', 'status']
+        )
+    """
+    if object_types is None:
+        search_types = DEFAULT_SEARCH_TYPES
+    else:
+        search_types = object_types
+
+    # Validate all object types exist in mapping
+    for obj_type in search_types:
+        if obj_type not in NETBOX_OBJECT_TYPES:
+            valid_types = "\n".join(
+                f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())
+            )
+            raise ValueError(
+                f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}"
+            )
+
+    results = {obj_type: [] for obj_type in search_types}
+
+    # Build results dictionary (error-resilient)
+    for obj_type in search_types:
+        try:
+            results[obj_type] = netbox.get(
+                NETBOX_OBJECT_TYPES[obj_type],
+                params={
+                    "q": query,
+                    "limit": limit,
+                    "fields": ",".join(fields) if fields else None,
+                },
+            )
+        except Exception:
+            # Continue searching other types if one fails
+            # results[obj_type] already has empty list
+            continue
+
+    return results
 
 
 if __name__ == "__main__":
