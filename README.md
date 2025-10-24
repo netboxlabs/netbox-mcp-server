@@ -244,6 +244,64 @@ uv run server.py --log-level DEBUG --no-verify-ssl  # Development
 uv run server.py --transport http --port 9000       # Custom HTTP port
 ```
 
+## Docker Usage
+
+### Standard Docker Image
+
+Build and run the NetBox MCP server in a container:
+
+```bash
+# Build the image
+docker build -t netbox-mcp-server:latest .
+
+# Run with HTTP transport (required for Docker containers)
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+> **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
+
+**With additional configuration options:**
+
+```bash
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e LOG_LEVEL=DEBUG \
+  -e VERIFY_SSL=false \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+The server will be accessible at `http://localhost:8000/mcp` for MCP clients.
+
+### OpenWebUI Integration
+
+For OpenWebUI users, use [mcpo](https://github.com/open-webui/mcpo) as a standalone wrapper to provide the OpenAPI-compatible interface that OpenWebUI requires:
+
+```bash
+# Install mcpo
+pip install mcpo
+
+# Run the NetBox MCP server with mcpo wrapper
+NETBOX_URL=https://netbox.example.com/ \
+NETBOX_TOKEN=<your-api-token> \
+mcpo --port 8090 -- uv run server.py
+
+# Configure OpenWebUI to connect to http://localhost:8090
+# OpenWebUI will use the OpenAPI spec at http://localhost:8090/openapi.json
+```
+
+> **Why separate?** MCPO is a generic MCP-to-OpenAPI translator that works with any MCP server. Keeping it separate maintains focus on the core NetBox MCP implementation while still supporting OpenWebUI users.
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
