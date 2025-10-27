@@ -339,6 +339,8 @@ def netbox_get_objects(
             - results: Array of objects for this page
                        ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
 
+    ENSURE YOU ARE AWARE THE RESULTS ARE PAGINATED BEFORE PROVIDING RESPONSE TO THE USER.
+
     Valid object_type values:
 
     DCIM (Device and Infrastructure):
@@ -463,7 +465,10 @@ def netbox_get_objects(
 
 @mcp.tool
 def netbox_get_object_by_id(
-    object_type: str, object_id: int, fields: list[str] | None = None, brief: bool = False
+    object_type: str,
+    object_id: int,
+    fields: list[str] | None = None,
+    brief: bool = False,
 ):
     """
     Get detailed information about a specific NetBox object by its ID.
@@ -587,7 +592,7 @@ def netbox_search_objects(
                      Default: ['devices', 'sites', 'ip-addresses', 'interfaces',
                               'racks', 'vlans', 'circuits', 'virtual-machines']
                      Examples: ['devices', 'ip-addresses', 'sites']
-        fields: Optional list of specific fields to return (reduces response size)
+        fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
                 - None or [] = returns all fields (no filtering)
                 - ['id', 'name'] = returns only specified fields
                 Examples: ['id', 'name', 'status'], ['address', 'dns_name']
