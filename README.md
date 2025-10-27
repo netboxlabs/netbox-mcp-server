@@ -244,6 +244,63 @@ uv run server.py --log-level DEBUG --no-verify-ssl  # Development
 uv run server.py --transport http --port 9000       # Custom HTTP port
 ```
 
+## Docker Usage
+
+### Standard Docker Image
+
+Build and run the NetBox MCP server in a container:
+
+```bash
+# Build the image
+docker build -t netbox-mcp-server:latest .
+
+# Run with HTTP transport (required for Docker containers)
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+> **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
+
+**Connecting to NetBox on your host machine:**
+
+If your NetBox instance is running on your host machine (not in a container), you need to use `host.docker.internal` instead of `localhost` on macOS and Windows:
+
+```bash
+# For NetBox running on host (macOS/Windows)
+docker run --rm \
+  -e NETBOX_URL=http://host.docker.internal:18000/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+> **Note:** On Linux, you can use `--network host` instead, or use the host's IP address directly.
+
+**With additional configuration options:**
+
+```bash
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e LOG_LEVEL=DEBUG \
+  -e VERIFY_SSL=false \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your preferred method.
+
 ## Development
 
 Contributions are welcome!  Please open an issue or submit a PR.
