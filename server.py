@@ -269,6 +269,7 @@ def netbox_get_objects(
     object_type: str,
     filters: dict,
     fields: list[str] | None = None,
+    brief: bool = False,
     limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
     offset: Annotated[int, Field(default=0, ge=0)] = 0,
     ordering: str | list[str] | None = None,
@@ -306,6 +307,9 @@ def netbox_get_objects(
 
                 Uses NetBox's native field filtering via ?fields= parameter.
                 **Always specify only the fields you actually need.**
+
+        brief: returns only a minimal representation of each object in the response.
+               This is useful when you need only a list of available objects without any related data.
 
         limit: Maximum results to return (default 5, max 100)
                Start with default, increase only if needed
@@ -444,6 +448,9 @@ def netbox_get_objects(
     if fields:
         params["fields"] = ",".join(fields)
 
+    if brief:
+        params["brief"] = "1"
+
     if ordering:
         if isinstance(ordering, list):
             ordering = ",".join(ordering)
@@ -456,7 +463,7 @@ def netbox_get_objects(
 
 @mcp.tool
 def netbox_get_object_by_id(
-    object_type: str, object_id: int, fields: list[str] | None = None
+    object_type: str, object_id: int, fields: list[str] | None = None, brief: bool = False
 ):
     """
     Get detailed information about a specific NetBox object by its ID.
@@ -478,6 +485,8 @@ def netbox_get_object_by_id(
 
                 Uses NetBox's native field filtering via ?fields= parameter.
                 **Always specify only the fields you actually need.**
+        brief: returns only a minimal representation of the object in the response.
+               This is useful when you need only a summary of the object without any related data.
 
     Returns:
         Object dict (complete or with only requested fields based on fields parameter)
@@ -493,6 +502,9 @@ def netbox_get_object_by_id(
     params = {}
     if fields:
         params["fields"] = ",".join(fields)
+
+    if brief:
+        params["brief"] = "1"
 
     return netbox.get(endpoint, params=params)
 
