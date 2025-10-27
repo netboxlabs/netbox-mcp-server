@@ -267,6 +267,24 @@ docker run --rm \
 
 > **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
 
+**Connecting to NetBox on your host machine:**
+
+If your NetBox instance is running on your host machine (not in a container), you need to use `host.docker.internal` instead of `localhost` on macOS and Windows:
+
+```bash
+# For NetBox running on host (macOS/Windows)
+docker run --rm \
+  -e NETBOX_URL=http://host.docker.internal:18000/ \
+  -e NETBOX_TOKEN=<your-api-token> \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+> **Note:** On Linux, you can use `--network host` instead, or use the host's IP address directly.
+
 **With additional configuration options:**
 
 ```bash
@@ -281,26 +299,7 @@ docker run --rm \
   netbox-mcp-server:latest
 ```
 
-The server will be accessible at `http://localhost:8000/mcp` for MCP clients.
-
-### OpenWebUI Integration
-
-For OpenWebUI users, use [mcpo](https://github.com/open-webui/mcpo) as a standalone wrapper to provide the OpenAPI-compatible interface that OpenWebUI requires:
-
-```bash
-# Install mcpo
-pip install mcpo
-
-# Run the NetBox MCP server with mcpo wrapper
-NETBOX_URL=https://netbox.example.com/ \
-NETBOX_TOKEN=<your-api-token> \
-mcpo --port 8090 -- uv run server.py
-
-# Configure OpenWebUI to connect to http://localhost:8090
-# OpenWebUI will use the OpenAPI spec at http://localhost:8090/openapi.json
-```
-
-> **Why separate?** MCPO is a generic MCP-to-OpenAPI translator that works with any MCP server. Keeping it separate maintains focus on the core NetBox MCP implementation while still supporting OpenWebUI users.
+The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your prefered method.
 
 ## Development
 
