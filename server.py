@@ -641,7 +641,7 @@ def netbox_search_objects(
     # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
-            results[obj_type] = netbox.get(
+            response = netbox.get(
                 NETBOX_OBJECT_TYPES[obj_type],
                 params={
                     "q": query,
@@ -649,6 +649,8 @@ def netbox_search_objects(
                     "fields": ",".join(fields) if fields else None,
                 },
             )
+            # Extract results array from paginated response
+            results[obj_type] = response.get("results", [])
         except Exception:
             # Continue searching other types if one fails
             # results[obj_type] already has empty list
