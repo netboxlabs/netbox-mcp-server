@@ -271,6 +271,7 @@ def netbox_get_objects(
     fields: list[str] | None = None,
     limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
     offset: Annotated[int, Field(default=0, ge=0)] = 0,
+    ordering: str | list[str] | None = None,
 ):
     """
     Get objects from NetBox based on their type and filters
@@ -311,6 +312,17 @@ def netbox_get_objects(
 
         offset: Skip this many results for pagination (default 0)
                 Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
+
+        ordering: Fields used to determine sort order of results.
+                  Field names may be prefixed with '-' to invert the sort order.
+                  Multiple fields may be specified with a list of strings.
+
+                  Examples:
+                  - 'name' (alphabetical by name)
+                  - '-id' (ordered by ID descending)
+                  - ['facility', '-name'] (by facility, then by name descending)
+                  - None, '' or [] (default NetBox ordering)
+
 
     Returns:
         Paginated response dict with the following structure:
@@ -431,6 +443,12 @@ def netbox_get_objects(
 
     if fields:
         params["fields"] = ",".join(fields)
+
+    if ordering:
+        if isinstance(ordering, list):
+            ordering = ",".join(ordering)
+        if ordering.strip() != "":
+            params["ordering"] = ordering
 
     # Make API call
     return netbox.get(endpoint, params=params)
