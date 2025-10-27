@@ -7,7 +7,6 @@ from pydantic import TypeAdapter, ValidationError
 
 from server import NETBOX_OBJECT_TYPES, netbox_search_objects
 
-
 # ============================================================================
 # Parameter Validation Tests
 # ============================================================================
@@ -44,7 +43,12 @@ def test_invalid_object_type_raises_error():
 @patch("server.netbox")
 def test_searches_default_types_when_none_specified(mock_netbox):
     """When object_types=None, should search 8 default common types."""
-    mock_netbox.get.return_value = []
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
 
     result = netbox_search_objects.fn(query="test")
 
@@ -57,7 +61,12 @@ def test_searches_default_types_when_none_specified(mock_netbox):
 @patch("server.netbox")
 def test_custom_object_types_limits_search_scope(mock_netbox):
     """When object_types specified, should only search those types."""
-    mock_netbox.get.return_value = []
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
 
     result = netbox_search_objects.fn(query="test", object_types=["devices", "sites"])
 
@@ -74,7 +83,12 @@ def test_custom_object_types_limits_search_scope(mock_netbox):
 @patch("server.netbox")
 def test_field_projection_applied_to_queries(mock_netbox):
     """When fields specified, should apply to all queries as comma-separated string."""
-    mock_netbox.get.return_value = []
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
 
     netbox_search_objects.fn(
         query="test", object_types=["devices", "sites"], fields=["id", "name"]
@@ -97,8 +111,13 @@ def test_result_structure_with_empty_and_populated_results(mock_netbox):
 
     def mock_get_side_effect(endpoint, params):
         if "devices" in endpoint:
-            return [{"id": 1, "name": "device01"}]
-        return []
+            return {
+                "count": 1,
+                "next": None,
+                "previous": None,
+                "results": [{"id": 1, "name": "device01"}],
+            }
+        return {"count": 0, "next": None, "previous": None, "results": []}
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
@@ -128,8 +147,13 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
         if "devices" in endpoint:
             raise Exception("API error")
         elif "sites" in endpoint:
-            return [{"id": 1, "name": "site01"}]
-        return []
+            return {
+                "count": 1,
+                "next": None,
+                "previous": None,
+                "results": [{"id": 1, "name": "site01"}],
+            }
+        return {"count": 0, "next": None, "previous": None, "results": []}
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
@@ -149,7 +173,12 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
 @patch("server.netbox")
 def test_api_parameters_passed_correctly(mock_netbox):
     """Should pass query, limit, and fields to NetBox API correctly."""
-    mock_netbox.get.return_value = []
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
 
     netbox_search_objects.fn(
         query="switch01", object_types=["devices"], fields=["id"], limit=25
@@ -166,10 +195,58 @@ def test_api_parameters_passed_correctly(mock_netbox):
 @patch("server.netbox")
 def test_uses_correct_api_endpoints(mock_netbox):
     """Should use correct API endpoints from NETBOX_OBJECT_TYPES mapping."""
-    mock_netbox.get.return_value = []
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "next": None,
+        "previous": None,
+        "results": [],
+    }
 
     netbox_search_objects.fn(query="test", object_types=["devices", "ip-addresses"])
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
     assert NETBOX_OBJECT_TYPES["devices"] in called_endpoints
     assert NETBOX_OBJECT_TYPES["ip-addresses"] in called_endpoints
+
+
+# ============================================================================
+# Paginated Response Handling Tests
+# ============================================================================
+
+
+@patch("server.netbox")
+def test_extracts_results_from_paginated_response(mock_netbox):
+    """Should extract 'results' array from NetBox paginated response structure.
+
+    NetBox API returns paginated responses with structure:
+    {
+        "count": <total>,
+        "next": <url or null>,
+        "previous": <url or null>,
+        "results": [<objects>]
+    }
+
+    The tool should return just the results arrays, not the full response.
+    """
+    # Mock realistic paginated response from NetBox API
+    mock_netbox.get.return_value = {
+        "count": 2,
+        "next": None,
+        "previous": None,
+        "results": [
+            {"id": 1, "name": "device01"},
+            {"id": 2, "name": "device02"},
+        ],
+    }
+
+    result = netbox_search_objects.fn(query="test", object_types=["devices"])
+
+    # Should return dict with object type as key
+    assert "devices" in result
+    # Value should be a list (array), not a dict
+    assert isinstance(result["devices"], list)
+    # Should contain just the results, not the paginated response wrapper
+    assert result["devices"] == [
+        {"id": 1, "name": "device01"},
+        {"id": 2, "name": "device02"},
+    ]
