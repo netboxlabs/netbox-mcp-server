@@ -299,7 +299,7 @@ docker run --rm \
   netbox-mcp-server:latest
 ```
 
-The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your prefered method.
+The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your preferred method.
 
 ## Development
 
