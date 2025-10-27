@@ -116,7 +116,7 @@ def configure_logging(
             "console": {
                 "class": "logging.StreamHandler",
                 "formatter": "console",
-                "stream": "ext://sys.stdout",
+                "stream": "ext://sys.stderr",
             },
         },
         "loggers": {
