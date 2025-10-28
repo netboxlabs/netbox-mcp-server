@@ -8,6 +8,7 @@ from pydantic import Field
 
 from config import Settings, configure_logging
 from netbox_client import NetBoxRestClient
+from netbox_types import NETBOX_OBJECT_TYPES
 
 
 def parse_cli_args() -> dict[str, Any]:
@@ -97,107 +98,16 @@ def parse_cli_args() -> dict[str, Any]:
     return overlay
 
 
-# Mapping of simple object names to API endpoints
-NETBOX_OBJECT_TYPES = {
-    # DCIM (Device and Infrastructure)
-    "cables": "dcim/cables",
-    "console-ports": "dcim/console-ports",
-    "console-server-ports": "dcim/console-server-ports",
-    "devices": "dcim/devices",
-    "device-bays": "dcim/device-bays",
-    "device-roles": "dcim/device-roles",
-    "device-types": "dcim/device-types",
-    "front-ports": "dcim/front-ports",
-    "interfaces": "dcim/interfaces",
-    "inventory-items": "dcim/inventory-items",
-    "locations": "dcim/locations",
-    "manufacturers": "dcim/manufacturers",
-    "modules": "dcim/modules",
-    "module-bays": "dcim/module-bays",
-    "module-types": "dcim/module-types",
-    "platforms": "dcim/platforms",
-    "power-feeds": "dcim/power-feeds",
-    "power-outlets": "dcim/power-outlets",
-    "power-panels": "dcim/power-panels",
-    "power-ports": "dcim/power-ports",
-    "racks": "dcim/racks",
-    "rack-reservations": "dcim/rack-reservations",
-    "rack-roles": "dcim/rack-roles",
-    "regions": "dcim/regions",
-    "sites": "dcim/sites",
-    "site-groups": "dcim/site-groups",
-    "virtual-chassis": "dcim/virtual-chassis",
-    # IPAM (IP Address Management)
-    "asns": "ipam/asns",
-    "asn-ranges": "ipam/asn-ranges",
-    "aggregates": "ipam/aggregates",
-    "fhrp-groups": "ipam/fhrp-groups",
-    "ip-addresses": "ipam/ip-addresses",
-    "ip-ranges": "ipam/ip-ranges",
-    "prefixes": "ipam/prefixes",
-    "rirs": "ipam/rirs",
-    "roles": "ipam/roles",
-    "route-targets": "ipam/route-targets",
-    "services": "ipam/services",
-    "vlans": "ipam/vlans",
-    "vlan-groups": "ipam/vlan-groups",
-    "vrfs": "ipam/vrfs",
-    # Circuits
-    "circuits": "circuits/circuits",
-    "circuit-types": "circuits/circuit-types",
-    "circuit-terminations": "circuits/circuit-terminations",
-    "providers": "circuits/providers",
-    "provider-networks": "circuits/provider-networks",
-    # Virtualization
-    "clusters": "virtualization/clusters",
-    "cluster-groups": "virtualization/cluster-groups",
-    "cluster-types": "virtualization/cluster-types",
-    "virtual-machines": "virtualization/virtual-machines",
-    "vm-interfaces": "virtualization/interfaces",
-    # Tenancy
-    "tenants": "tenancy/tenants",
-    "tenant-groups": "tenancy/tenant-groups",
-    "contacts": "tenancy/contacts",
-    "contact-groups": "tenancy/contact-groups",
-    "contact-roles": "tenancy/contact-roles",
-    # VPN
-    "ike-policies": "vpn/ike-policies",
-    "ike-proposals": "vpn/ike-proposals",
-    "ipsec-policies": "vpn/ipsec-policies",
-    "ipsec-profiles": "vpn/ipsec-profiles",
-    "ipsec-proposals": "vpn/ipsec-proposals",
-    "l2vpns": "vpn/l2vpns",
-    "tunnels": "vpn/tunnels",
-    "tunnel-groups": "vpn/tunnel-groups",
-    # Wireless
-    "wireless-lans": "wireless/wireless-lans",
-    "wireless-lan-groups": "wireless/wireless-lan-groups",
-    "wireless-links": "wireless/wireless-links",
-    # Core (introduced in NetBox v3.5)
-    "data-files": "core/data-files",
-    "data-sources": "core/data-sources",
-    "jobs": "core/jobs",
-    # Extras
-    "config-contexts": "extras/config-contexts",
-    "custom-fields": "extras/custom-fields",
-    "export-templates": "extras/export-templates",
-    "image-attachments": "extras/image-attachments",
-    "saved-filters": "extras/saved-filters",
-    "scripts": "extras/scripts",
-    "tags": "extras/tags",
-    "webhooks": "extras/webhooks",
-}
-
 # Default object types for global search
 DEFAULT_SEARCH_TYPES = [
-    "devices",  # Most common search target
-    "sites",  # Site names frequently searched
-    "ip-addresses",  # IP searches very common
-    "interfaces",  # Interface names/descriptions
-    "racks",  # Rack identifiers
-    "vlans",  # VLAN names/IDs
-    "circuits",  # Circuit identifiers
-    "virtual-machines",  # VM names
+    "dcim.device",  # Most common search target
+    "dcim.site",  # Site names frequently searched
+    "ipam.ipaddress",  # IP searches very common
+    "dcim.interface",  # Interface names/descriptions
+    "dcim.rack",  # Rack identifiers
+    "ipam.vlan",  # VLAN names/IDs
+    "circuits.circuit",  # Circuit identifiers
+    "virtualization.virtualmachine",  # VM names
 ]
 
 mcp = FastMCP("NetBox")
@@ -264,17 +174,8 @@ def validate_filters(filters: dict) -> None:
             )
 
 
-@mcp.tool
-def netbox_get_objects(
-    object_type: str,
-    filters: dict,
-    fields: list[str] | None = None,
-    brief: bool = False,
-    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
-    offset: Annotated[int, Field(default=0, ge=0)] = 0,
-    ordering: str | list[str] | None = None,
-):
-    """
+@mcp.tool(
+    description="""
     Get objects from NetBox based on their type and filters
 
     Args:
@@ -343,93 +244,24 @@ def netbox_get_objects(
 
     Valid object_type values:
 
-    DCIM (Device and Infrastructure):
-    - cables
-    - console-ports
-    - console-server-ports
-    - devices
-    - device-bays
-    - device-roles
-    - device-types
-    - front-ports
-    - interfaces
-    - inventory-items
-    - locations
-    - manufacturers
-    - modules
-    - module-bays
-    - module-types
-    - platforms
-    - power-feeds
-    - power-outlets
-    - power-panels
-    - power-ports
-    - racks
-    - rack-reservations
-    - rack-roles
-    - regions
-    - sites
-    - site-groups
-    - virtual-chassis
-
-    IPAM (IP Address Management):
-    - asns
-    - asn-ranges
-    - aggregates
-    - fhrp-groups
-    - ip-addresses
-    - ip-ranges
-    - prefixes
-    - rirs
-    - roles
-    - route-targets
-    - services
-    - vlans
-    - vlan-groups
-    - vrfs
-
-    Circuits:
-    - circuits
-    - circuit-types
-    - circuit-terminations
-    - providers
-    - provider-networks
-
-    Virtualization:
-    - clusters
-    - cluster-groups
-    - cluster-types
-    - virtual-machines
-    - vm-interfaces
-
-    Tenancy:
-    - tenants
-    - tenant-groups
-    - contacts
-    - contact-groups
-    - contact-roles
-
-    VPN:
-    - ike-policies
-    - ike-proposals
-    - ipsec-policies
-    - ipsec-profiles
-    - ipsec-proposals
-    - l2vpns
-    - tunnels
-    - tunnel-groups
-
-    Wireless:
-    - wireless-lans
-    - wireless-lan-groups
-    - wireless-links
-
-    Core (NetBox v3.5+):
-    - data-files
-    - data-sources
-    - jobs
+    """ +
+    "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())) +
+    """
 
     See NetBox API documentation for filtering options for each object type.
+    """
+)
+def netbox_get_objects(
+    object_type: str,
+    filters: dict,
+    fields: list[str] | None = None,
+    brief: bool = False,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+    offset: Annotated[int, Field(default=0, ge=0)] = 0,
+    ordering: str | list[str] | None = None,
+):
+    """
+    Get objects from NetBox based on their type and filters
     """
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
@@ -440,7 +272,7 @@ def netbox_get_objects(
     validate_filters(filters)
 
     # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _endpoint_for_type(object_type)
 
     # Build params with pagination (parameters override filters dict)
     params = filters.copy()
@@ -474,7 +306,7 @@ def netbox_get_object_by_id(
     Get detailed information about a specific NetBox object by its ID.
 
     Args:
-        object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
         object_id: The numeric ID of the object
         fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
@@ -502,7 +334,7 @@ def netbox_get_object_by_id(
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
     # Get API endpoint from mapping
-    endpoint = f"{NETBOX_OBJECT_TYPES[object_type]}/{object_id}"
+    endpoint = f"{_endpoint_for_type(object_type)}/{object_id}"
 
     params = {}
     if fields:
@@ -572,14 +404,8 @@ def netbox_get_changelogs(filters: dict):
     return netbox.get(endpoint, params=filters)
 
 
-@mcp.tool
-def netbox_search_objects(
-    query: str,
-    object_types: list[str] | None = None,
-    fields: list[str] | None = None,
-    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
-) -> dict[str, list[dict]]:
-    """
+@mcp.tool(
+    description="""
     Perform global search across NetBox infrastructure.
 
     Searches names, descriptions, IP addresses, serial numbers, asset tags,
@@ -589,9 +415,8 @@ def netbox_search_objects(
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
         object_types: Limit search to specific types (optional)
-                     Default: ['devices', 'sites', 'ip-addresses', 'interfaces',
-                              'racks', 'vlans', 'circuits', 'virtual-machines']
-                     Examples: ['devices', 'ip-addresses', 'sites']
+                     Default: [""" + "', '".join(DEFAULT_SEARCH_TYPES) + """]
+                     Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
         fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
                 - None or [] = returns all fields (no filtering)
                 - ['id', 'name'] = returns only specified fields
@@ -607,24 +432,34 @@ def netbox_search_objects(
         # Search for anything matching "switch"
         results = netbox_search_objects('switch')
         # Returns: {
-        #   'devices': [{'id': 1, 'name': 'switch-01', ...}],
-        #   'sites': [],
+        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],
+        #   'dcim.site': [],
         #   ...
         # }
 
         # Search for IP address
         results = netbox_search_objects('192.168.1.100')
         # Returns: {
-        #   'ip-addresses': [{'id': 42, 'address': '192.168.1.100/24', ...}],
+        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],
         #   ...
         # }
 
         # Limit search to specific types with field projection
         results = netbox_search_objects(
             'NYC',
-            object_types=['sites', 'locations'],
+            object_types=['dcim.site', 'dcim.location'],
             fields=['id', 'name', 'status']
         )
+    """
+)
+def netbox_search_objects(
+    query: str,
+    object_types: list[str] | None = None,
+    fields: list[str] | None = None,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+) -> dict[str, list[dict]]:
+    """
+    Perform global search across NetBox infrastructure.
     """
     if object_types is None:
         search_types = DEFAULT_SEARCH_TYPES
@@ -647,7 +482,7 @@ def netbox_search_objects(
     for obj_type in search_types:
         try:
             response = netbox.get(
-                NETBOX_OBJECT_TYPES[obj_type],
+                _endpoint_for_type(obj_type),
                 params={
                     "q": query,
                     "limit": limit,
@@ -663,6 +498,8 @@ def netbox_search_objects(
 
     return results
 
+def _endpoint_for_type(object_type):
+    return NETBOX_OBJECT_TYPES[object_type]['endpoint']
 
 if __name__ == "__main__":
     cli_overlay: dict[str, Any] = parse_cli_args()
