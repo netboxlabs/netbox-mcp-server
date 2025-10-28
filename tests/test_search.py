@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from server import NETBOX_OBJECT_TYPES, netbox_search_objects
+from netbox_types import NETBOX_OBJECT_TYPES
+from server import netbox_search_objects
 
 # ============================================================================
 # Parameter Validation Tests
@@ -68,11 +69,11 @@ def test_custom_object_types_limits_search_scope(mock_netbox):
         "results": [],
     }
 
-    result = netbox_search_objects.fn(query="test", object_types=["devices", "sites"])
+    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
 
     # Should only search specified types
     assert mock_netbox.get.call_count == 2
-    assert set(result.keys()) == {"devices", "sites"}
+    assert set(result.keys()) == {"dcim.device", "dcim.site"}
 
 
 # ============================================================================
@@ -91,7 +92,7 @@ def test_field_projection_applied_to_queries(mock_netbox):
     }
 
     netbox_search_objects.fn(
-        query="test", object_types=["devices", "sites"], fields=["id", "name"]
+        query="test", object_types=["dcim.device", "dcim.site"], fields=["id", "name"]
     )
 
     # All calls should include fields parameter
@@ -122,16 +123,16 @@ def test_result_structure_with_empty_and_populated_results(mock_netbox):
     mock_netbox.get.side_effect = mock_get_side_effect
 
     result = netbox_search_objects.fn(
-        query="test", object_types=["devices", "sites", "racks"]
+        query="test", object_types=["dcim.device", "dcim.site", "dcim.rack"]
     )
 
     # All types present
-    assert set(result.keys()) == {"devices", "sites", "racks"}
+    assert set(result.keys()) == {"dcim.device", "dcim.site", "dcim.rack"}
     # Populated results contain data
-    assert result["devices"] == [{"id": 1, "name": "device01"}]
+    assert result["dcim.device"] == [{"id": 1, "name": "device01"}]
     # Empty results are empty lists, not missing keys
-    assert result["sites"] == []
-    assert result["racks"] == []
+    assert result["dcim.site"] == []
+    assert result["dcim.rack"] == []
 
 
 # ============================================================================
@@ -157,12 +158,12 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
-    result = netbox_search_objects.fn(query="test", object_types=["devices", "sites"])
+    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
 
     # Should continue despite error
-    assert result["sites"] == [{"id": 1, "name": "site01"}]
+    assert result["dcim.site"] == [{"id": 1, "name": "site01"}]
     # Failed type has empty list
-    assert result["devices"] == []
+    assert result["dcim.device"] == []
 
 
 # ============================================================================
@@ -181,7 +182,7 @@ def test_api_parameters_passed_correctly(mock_netbox):
     }
 
     netbox_search_objects.fn(
-        query="switch01", object_types=["devices"], fields=["id"], limit=25
+        query="switch01", object_types=["dcim.device"], fields=["id"], limit=25
     )
 
     call_args = mock_netbox.get.call_args
@@ -202,11 +203,11 @@ def test_uses_correct_api_endpoints(mock_netbox):
         "results": [],
     }
 
-    netbox_search_objects.fn(query="test", object_types=["devices", "ip-addresses"])
+    netbox_search_objects.fn(query="test", object_types=["dcim.device", "ipam.ipaddress"])
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
-    assert NETBOX_OBJECT_TYPES["devices"] in called_endpoints
-    assert NETBOX_OBJECT_TYPES["ip-addresses"] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["dcim.device"]['endpoint'] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["ipam.ipaddress"]['endpoint'] in called_endpoints
 
 
 # ============================================================================
@@ -239,14 +240,14 @@ def test_extracts_results_from_paginated_response(mock_netbox):
         ],
     }
 
-    result = netbox_search_objects.fn(query="test", object_types=["devices"])
+    result = netbox_search_objects.fn(query="test", object_types=["dcim.device"])
 
     # Should return dict with object type as key
-    assert "devices" in result
+    assert "dcim.device" in result
     # Value should be a list (array), not a dict
-    assert isinstance(result["devices"], list)
+    assert isinstance(result["dcim.device"], list)
     # Should contain just the results, not the paginated response wrapper
-    assert result["devices"] == [
+    assert result["dcim.device"] == [
         {"id": 1, "name": "device01"},
         {"id": 2, "name": "device02"},
     ]
