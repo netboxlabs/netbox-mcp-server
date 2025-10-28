@@ -179,7 +179,7 @@ def validate_filters(filters: dict) -> None:
     Get objects from NetBox based on their type and filters
 
     Args:
-        object_type: String representing the NetBox object type (e.g. "devices", "ip-addresses")
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
         filters: dict of filters to apply to the API call based on the NetBox API filtering options
 
                 FILTER RULES:
@@ -191,8 +191,8 @@ def validate_filters(filters: dict) -> None:
                                  empty, regex, iregex, lt, lte, gt, gte, in
 
                 Two-step pattern for cross-relationship queries:
-                  sites = netbox_get_objects('sites', {'name': 'NYC'})
-                  netbox_get_objects('devices', {'site_id': sites[0]['id']})
+                  sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
+                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})
 
         fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
