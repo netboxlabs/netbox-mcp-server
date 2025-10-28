@@ -498,7 +498,11 @@ def netbox_search_objects(
 
     return results
 
-def _endpoint_for_type(object_type):
+def _endpoint_for_type(object_type: str) -> str:
+    """
+    Returns partial API endpoint prefix for the given object type.
+    e.g., "dcim.device" -> "dcim/devices"
+    """
     return NETBOX_OBJECT_TYPES[object_type]['endpoint']
 
 if __name__ == "__main__":
