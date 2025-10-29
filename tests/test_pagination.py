@@ -5,7 +5,7 @@ import inspect
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from server import netbox_get_objects
+from netbox_mcp_server.server import netbox_get_objects
 
 
 def test_limit_validation_rejects_values_over_100():
