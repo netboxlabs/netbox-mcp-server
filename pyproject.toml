@@ -21,3 +21,19 @@ dev = [
     "pytest-cov>=7.0.0",
     "python-semantic-release>=10.4.1",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/netbox_mcp_server/__init__.py:__version__"]
+branch = "main"
+upload_to_vcs_release = true
+build_command = "uv build"
+tag_format = "v{version}"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "chore", "refactor", "test", "ci", "perf"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
