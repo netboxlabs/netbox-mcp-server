@@ -43,13 +43,16 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 uv sync
 
 # Run the server locally (requires env vars)
-NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run server.py
+NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run netbox-mcp-server
+
+# Alternative: module execution
+uv run -m netbox_mcp_server
 
 # Add to Claude Code (for development/testing)
 claude mcp add --transport stdio netbox \
   --env NETBOX_URL=https://netbox.example.com/ \
   --env NETBOX_TOKEN=<token> \
-  -- uv --directory /path/to/netbox-mcp-server run server.py
+  -- uv --directory /path/to/netbox-mcp-server run netbox-mcp-server
 ```
 
 ## Development Philosophy
