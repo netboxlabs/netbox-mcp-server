@@ -18,12 +18,20 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 
 ```text
 .
-├── server.py              # Main MCP server with tool definitions
-├── netbox_client.py       # NetBox REST API client abstraction
-├── pyproject.toml         # Dependencies and project metadata
-├── README.md              # User-facing documentation
-├── SECURITY.md            # Security policy and reporting
-└── LICENSE                # Apache 2.0 license
+├── src/
+│   └── netbox_mcp_server/
+│       ├── __init__.py          # Package initialization with __version__
+│       ├── __main__.py          # Entry point for module execution
+│       ├── server.py            # Main MCP server with tool definitions
+│       ├── netbox_client.py     # NetBox REST API client abstraction
+│       ├── netbox_types.py      # NetBox object type mappings
+│       └── config.py            # Settings and logging configuration
+├── tests/                        # Test suite
+├── .github/workflows/            # CI/CD automation
+├── pyproject.toml               # Dependencies and project metadata
+├── README.md                    # User-facing documentation
+├── CHANGELOG.md                 # Auto-generated release notes
+└── LICENSE                      # Apache 2.0 license
 ```
 
 **Design Pattern**: Clean separation between MCP server logic (`server.py`) and NetBox API client (`netbox_client.py`) to support future plugin-based implementations.
