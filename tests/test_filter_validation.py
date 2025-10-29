@@ -2,7 +2,7 @@
 
 import pytest
 
-from server import validate_filters
+from netbox_mcp_server.server import validate_filters
 
 
 def test_direct_field_filters_pass():
