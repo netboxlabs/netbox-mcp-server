@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from netbox_types import NETBOX_OBJECT_TYPES
-from server import netbox_search_objects
+from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
+from netbox_mcp_server.server import netbox_search_objects
 
 # ============================================================================
 # Parameter Validation Tests
@@ -41,7 +41,7 @@ def test_invalid_object_type_raises_error():
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_searches_default_types_when_none_specified(mock_netbox):
     """When object_types=None, should search 8 default common types."""
     mock_netbox.get.return_value = {
@@ -59,7 +59,7 @@ def test_searches_default_types_when_none_specified(mock_netbox):
     assert len(result) == 8
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_custom_object_types_limits_search_scope(mock_netbox):
     """When object_types specified, should only search those types."""
     mock_netbox.get.return_value = {
@@ -81,7 +81,7 @@ def test_custom_object_types_limits_search_scope(mock_netbox):
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_field_projection_applied_to_queries(mock_netbox):
     """When fields specified, should apply to all queries as comma-separated string."""
     mock_netbox.get.return_value = {
@@ -106,7 +106,7 @@ def test_field_projection_applied_to_queries(mock_netbox):
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_result_structure_with_empty_and_populated_results(mock_netbox):
     """Should return dict with all types as keys, empty lists for no matches."""
 
@@ -140,7 +140,7 @@ def test_result_structure_with_empty_and_populated_results(mock_netbox):
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_continues_searching_when_one_type_fails(mock_netbox):
     """If one object type fails, should continue searching others."""
 
@@ -171,7 +171,7 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_api_parameters_passed_correctly(mock_netbox):
     """Should pass query, limit, and fields to NetBox API correctly."""
     mock_netbox.get.return_value = {
@@ -193,7 +193,7 @@ def test_api_parameters_passed_correctly(mock_netbox):
     assert params["fields"] == "id"
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_uses_correct_api_endpoints(mock_netbox):
     """Should use correct API endpoints from NETBOX_OBJECT_TYPES mapping."""
     mock_netbox.get.return_value = {
@@ -215,7 +215,7 @@ def test_uses_correct_api_endpoints(mock_netbox):
 # ============================================================================
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_extracts_results_from_paginated_response(mock_netbox):
     """Should extract 'results' array from NetBox paginated response structure.
 
