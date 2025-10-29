@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from config import Settings, configure_logging
-from server import parse_cli_args
+from netbox_mcp_server.config import Settings, configure_logging
+from netbox_mcp_server.server import parse_cli_args
 
 
 def test_settings_requires_netbox_url():
