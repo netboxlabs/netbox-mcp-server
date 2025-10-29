@@ -98,7 +98,7 @@ Add the server configuration to your Claude Desktop config file. On Mac, edit `~
                 "--directory",
                 "/path/to/netbox-mcp-server",
                 "run",
-                "server.py"
+                "netbox-mcp-server"
             ],
             "env": {
                 "NETBOX_URL": "https://netbox.example.com/",
@@ -183,7 +183,7 @@ For local Claude Desktop or Claude Code usage with stdio transport:
     "mcpServers": {
         "netbox": {
             "command": "uv",
-            "args": ["--directory", "/path/to/netbox-mcp-server", "run", "server.py"],
+            "args": ["--directory", "/path/to/netbox-mcp-server", "run", "netbox-mcp-server"],
             "env": {
                 "NETBOX_URL": "https://netbox.example.com/",
                 "NETBOX_TOKEN": "<your-api-token>"
