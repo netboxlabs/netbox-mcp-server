@@ -1,5 +1,12 @@
 # NetBox MCP Server
 
+> **⚠️ Breaking Change in v1.0.0**: The project structure has changed.
+> If upgrading from v0.1.0, update your configuration:
+> - Change `uv run server.py` to `uv run netbox-mcp-server`
+> - Update Claude Desktop/Code configs to use `netbox-mcp-server` instead of `server.py`
+> - Docker users: rebuild images with updated CMD
+> - See [CHANGELOG.md](CHANGELOG.md) for full details
+
 This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox.  It enables you to interact with your data in NetBox directly via LLMs that support MCP.
 
 ## Tools
