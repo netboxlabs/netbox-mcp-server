@@ -33,4 +33,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
-CMD ["python", "-u", "server.py"]
+CMD ["netbox-mcp-server"]
