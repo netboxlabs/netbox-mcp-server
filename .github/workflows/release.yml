@@ -33,6 +33,6 @@ jobs:
         run: uv sync
 
       - name: Python Semantic Release
-        uses: python-semantic-release/python-semantic-release@v9
+        uses: python-semantic-release/python-semantic-release@v10
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
