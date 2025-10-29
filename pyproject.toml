@@ -31,7 +31,6 @@ version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/netbox_mcp_server/__init__.py:__version__"]
 branch = "main"
 upload_to_vcs_release = true
-build_command = "uv build"
 tag_format = "v{version}"
 
 [tool.semantic_release.commit_parser_options]
