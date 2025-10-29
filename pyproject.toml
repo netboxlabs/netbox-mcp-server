@@ -12,6 +12,9 @@ dependencies = [
     "pydantic-settings>=2.0",
 ]
 
+[project.scripts]
+netbox-mcp-server = "netbox_mcp_server.server:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
