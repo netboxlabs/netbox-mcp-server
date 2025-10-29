@@ -33,7 +33,7 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
     pip install -e .
     ```
 
-3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run server.py`
+3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run netbox-mcp-server`
 
 4. Add the MCP server to your LLM client. See below for some examples with Claude.
 
@@ -47,7 +47,7 @@ Add the server using the `claude mcp add` command:
 claude mcp add --transport stdio netbox \
   --env NETBOX_URL=https://netbox.example.com/ \
   --env NETBOX_TOKEN=<your-api-token> \
-  -- uv --directory /path/to/netbox-mcp-server run server.py
+  -- uv --directory /path/to/netbox-mcp-server run netbox-mcp-server
 ```
 
 **Important notes:**
@@ -68,7 +68,7 @@ For HTTP transport, first start the server manually:
 NETBOX_URL=https://netbox.example.com/ \
 NETBOX_TOKEN=<your-api-token> \
 TRANSPORT=http \
-uv run server.py
+uv run netbox-mcp-server
 ```
 
 Then add the running server to Claude Code:
@@ -205,10 +205,10 @@ export TRANSPORT=http
 export HOST=127.0.0.1
 export PORT=8000
 
-uv run server.py
+uv run netbox-mcp-server
 
 # Or using CLI arguments
-uv run server.py \
+uv run netbox-mcp-server \
   --netbox-url https://netbox.example.com/ \
   --netbox-token <your-api-token> \
   --transport http \
@@ -244,11 +244,11 @@ LOG_LEVEL=INFO
 All configuration options can be overridden via CLI arguments:
 
 ```bash
-uv run server.py --help
+uv run netbox-mcp-server --help
 
 # Common examples:
-uv run server.py --log-level DEBUG --no-verify-ssl  # Development
-uv run server.py --transport http --port 9000       # Custom HTTP port
+uv run netbox-mcp-server --log-level DEBUG --no-verify-ssl  # Development
+uv run netbox-mcp-server --transport http --port 9000       # Custom HTTP port
 ```
 
 ## Docker Usage
