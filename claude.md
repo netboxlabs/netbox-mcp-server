@@ -18,12 +18,20 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 
 ```text
 .
-├── server.py              # Main MCP server with tool definitions
-├── netbox_client.py       # NetBox REST API client abstraction
-├── pyproject.toml         # Dependencies and project metadata
-├── README.md              # User-facing documentation
-├── SECURITY.md            # Security policy and reporting
-└── LICENSE                # Apache 2.0 license
+├── src/
+│   └── netbox_mcp_server/
+│       ├── __init__.py          # Package initialization with __version__
+│       ├── __main__.py          # Entry point for module execution
+│       ├── server.py            # Main MCP server with tool definitions
+│       ├── netbox_client.py     # NetBox REST API client abstraction
+│       ├── netbox_types.py      # NetBox object type mappings
+│       └── config.py            # Settings and logging configuration
+├── tests/                        # Test suite
+├── .github/workflows/            # CI/CD automation
+├── pyproject.toml               # Dependencies and project metadata
+├── README.md                    # User-facing documentation
+├── CHANGELOG.md                 # Auto-generated release notes
+└── LICENSE                      # Apache 2.0 license
 ```
 
 **Design Pattern**: Clean separation between MCP server logic (`server.py`) and NetBox API client (`netbox_client.py`) to support future plugin-based implementations.
@@ -35,13 +43,16 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 uv sync
 
 # Run the server locally (requires env vars)
-NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run server.py
+NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run netbox-mcp-server
+
+# Alternative: module execution
+uv run -m netbox_mcp_server
 
 # Add to Claude Code (for development/testing)
 claude mcp add --transport stdio netbox \
   --env NETBOX_URL=https://netbox.example.com/ \
   --env NETBOX_TOKEN=<token> \
-  -- uv --directory /path/to/netbox-mcp-server run server.py
+  -- uv --directory /path/to/netbox-mcp-server run netbox-mcp-server
 ```
 
 ## Development Philosophy
@@ -56,6 +67,23 @@ claude mcp add --transport stdio netbox \
 - **Test frequently**: Test with realistic inputs and validate outputs as you build
 - **Functional where clear**: Use functional, stateless approaches when they improve clarity
 - **Clean core logic**: Keep business logic clean; push implementation details to the edges
+
+## Version Management
+
+This project uses [python-semantic-release](https://python-semantic-release.readthedocs.io/) for automated version management. Versions are automatically determined from commit messages following [Conventional Commits](https://www.conventionalcommits.org/).
+
+**Release triggers:**
+
+- `feat:` commits trigger minor version bumps (1.0.0 → 1.1.0)
+- `fix:` and `perf:` commits trigger patch version bumps (1.0.0 → 1.0.1)
+- Commits with `BREAKING CHANGE:` in the body trigger major version bumps (1.0.0 → 2.0.0)
+- `docs:`, `test:`, `chore:`, `ci:`, `refactor:` commits are logged but don't trigger releases
+
+**Workflow:**
+
+- Merge to `main` automatically triggers release analysis
+- If commits warrant a release, version is bumped and CHANGELOG updated
+- GitHub Release is created with auto-generated release notes
 
 ## Code Standards
 
@@ -259,7 +287,6 @@ Currently no automated test suite. When adding tests:
 
 - ❌ **NEVER commit directly to `main`** - Always use feature branches
 - ✅ **DO keep commits professional and concise** and focused on the change
-
 
 ## Decision Heuristics
 

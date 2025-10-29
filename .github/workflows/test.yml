@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      netbox:
+        image: netboxcommunity/netbox:latest
+        env:
+          SKIP_SUPERUSER: true
+        ports:
+          - 8000:8080
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest -v
+        env:
+          NETBOX_URL: http://localhost:8000
+          NETBOX_TOKEN: ${{ secrets.NETBOX_TOKEN }}

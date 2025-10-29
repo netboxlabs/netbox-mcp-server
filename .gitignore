@@ -85,4 +85,8 @@ logs/
 *.bak
 *.swp
 *.swo
+
+# Git worktrees
+.worktrees/
+
 .plans/*
