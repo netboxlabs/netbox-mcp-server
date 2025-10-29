@@ -6,9 +6,9 @@ from typing import Annotated, Any
 from fastmcp import FastMCP
 from pydantic import Field
 
-from config import Settings, configure_logging
-from netbox_client import NetBoxRestClient
-from netbox_types import NETBOX_OBJECT_TYPES
+from netbox_mcp_server.config import Settings, configure_logging
+from netbox_mcp_server.netbox_client import NetBoxRestClient
+from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
 
 
 def parse_cli_args() -> dict[str, Any]:
@@ -505,7 +505,11 @@ def _endpoint_for_type(object_type: str) -> str:
     """
     return NETBOX_OBJECT_TYPES[object_type]['endpoint']
 
-if __name__ == "__main__":
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    global netbox
+
     cli_overlay: dict[str, Any] = parse_cli_args()
 
     try:
@@ -561,3 +565,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
