@@ -368,7 +368,8 @@ def netbox_get_changelogs(filters: dict):
     Filtering options include:
     - user_id: Filter by user ID who made the change
     - user: Filter by username who made the change
-    - changed_object_type_id: Filter by ContentType ID of the changed object
+    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
+                              Note: This expects a numeric ID, not an object type string
     - changed_object_id: Filter by ID of the changed object
     - object_repr: Filter by object representation (usually contains object name)
     - action: Filter by action type (created, updated, deleted)
@@ -376,9 +377,12 @@ def netbox_get_changelogs(filters: dict):
     - time_after: Filter for changes made after a given time (ISO 8601 format)
     - q: Search term to filter by object representation
 
-    Example:
-    To find all changes made to a specific device with ID 123:
-    {"changed_object_type_id": "dcim.device", "changed_object_id": 123}
+    Examples:
+    To find all changes made to a specific object by ID:
+    {"changed_object_id": 123}
+
+    To find changes by object name pattern:
+    {"object_repr": "router-01"}
 
     To find all deletions in the last 24 hours:
     {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
