@@ -68,6 +68,21 @@ claude mcp add --transport stdio netbox \
 - **Functional where clear**: Use functional, stateless approaches when they improve clarity
 - **Clean core logic**: Keep business logic clean; push implementation details to the edges
 
+## Version Management
+
+This project uses [python-semantic-release](https://python-semantic-release.readthedocs.io/) for automated version management. Versions are automatically determined from commit messages following [Conventional Commits](https://www.conventionalcommits.org/).
+
+**Release triggers:**
+- `feat:` commits trigger minor version bumps (1.0.0 → 1.1.0)
+- `fix:` and `perf:` commits trigger patch version bumps (1.0.0 → 1.0.1)
+- Commits with `BREAKING CHANGE:` in the body trigger major version bumps (1.0.0 → 2.0.0)
+- `docs:`, `test:`, `chore:`, `ci:`, `refactor:` commits are logged but don't trigger releases
+
+**Workflow:**
+- Merge to `main` automatically triggers release analysis
+- If commits warrant a release, version is bumped and CHANGELOG updated
+- GitHub Release is created with auto-generated release notes
+
 ## Code Standards
 
 ### Python Conventions
