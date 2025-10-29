@@ -1,6 +1,6 @@
 """NetBox MCP Server - Read-only MCP server for NetBox infrastructure data."""
 
-__version__ = "1.0.0"  # Auto-managed by semantic-release
+__version__ = "0.1.0"  # Auto-managed by semantic-release
 
 __all__ = ["NetBoxRestClient", "NETBOX_OBJECT_TYPES", "Settings"]
 
