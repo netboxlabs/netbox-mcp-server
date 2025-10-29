@@ -1,11 +1,4 @@
 # CODEOWNERS - Require review from maintainers for critical files
-# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-
-# Workflow files require review from maintainers (prevents bypass attacks)
 /.github/workflows/ @abubnalitic-nbl @ltucker
-
-# Release configuration requires review
 /pyproject.toml @abubnalitic-nbl @ltucker
-
-# Security-sensitive configuration
 /.github/CODEOWNERS @abubnalitic-nbl @ltucker
