@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from server import netbox_get_objects
+from netbox_mcp_server.server import netbox_get_objects
 
 
 def test_ordering_rejects_invalid_types():
@@ -22,7 +22,7 @@ def test_ordering_rejects_invalid_types():
     with pytest.raises(ValidationError):
         adapter.validate_python(["name", 123])
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_none_omits_parameter(mock_netbox):
     """When ordering=None, should not include ordering in API params."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
@@ -36,7 +36,7 @@ def test_ordering_none_omits_parameter(mock_netbox):
     assert "ordering" not in params
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_empty_string_omits_parameter(mock_netbox):
     """When ordering='', should not include ordering in API params."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
@@ -50,7 +50,7 @@ def test_ordering_empty_string_omits_parameter(mock_netbox):
     assert "ordering" not in params
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_single_field_ascending(mock_netbox):
     """When ordering='name', should pass 'name' to API params."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
@@ -63,7 +63,7 @@ def test_ordering_single_field_ascending(mock_netbox):
     assert params["ordering"] == "name"
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_single_field_descending(mock_netbox):
     """When ordering='-id', should pass '-id' to API params."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
@@ -76,7 +76,7 @@ def test_ordering_single_field_descending(mock_netbox):
     assert params["ordering"] == "-id"
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_multiple_fields_as_list(mock_netbox):
     """When ordering=['facility', '-name'], should pass comma-separated string."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
@@ -90,7 +90,7 @@ def test_ordering_multiple_fields_as_list(mock_netbox):
     assert params["ordering"] == "facility,-name"
 
 
-@patch("server.netbox")
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_empty_list_omits_parameter(mock_netbox):
     """When ordering=[], should not include ordering in API params."""
     mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
