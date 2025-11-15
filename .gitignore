@@ -1,3 +1,3 @@
-netbox-mcp-server
+/netbox-mcp-server
 *.exe
 .env
