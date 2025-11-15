@@ -43,9 +43,9 @@ Ajoutez ceci dans votre fichier de configuration Claude Desktop :
 
 Remplacez `/chemin/vers/netbox-mcp-server/golang/netbox-mcp-server` par le chemin absolu vers votre binaire.
 
-## Option 2: Transport HTTP/SSE (Pour les clients web ou distants)
+## Option 2: Transport HTTP (Streamable HTTP/MCP)
 
-Le transport HTTP/SSE permet aux clients de se connecter via HTTP, utile pour les déploiements distants ou les clients web.
+Le transport HTTP Streamable permet aux clients de se connecter via HTTP, utile pour les déploiements distants ou les clients web. Il utilise le protocole Streamable HTTP du MCP sur l'endpoint `/mcp`.
 
 ### Configuration `.env`
 
@@ -68,22 +68,22 @@ LOG_LEVEL=DEBUG
 Le serveur démarre et affiche :
 
 ```
-[DEBUG] Starting HTTP transport (SSE) on 0.0.0.0:8000
-[DEBUG] SSE server listening on: http://0.0.0.0:8000
-[DEBUG] SSE endpoint: http://0.0.0.0:8000/sse
-[DEBUG] Message endpoint: http://0.0.0.0:8000/message
+[DEBUG] Starting HTTP transport (Streamable HTTP) on 0.0.0.0:8000
+[DEBUG] Streamable HTTP server listening on: http://0.0.0.0:8000
+[DEBUG] MCP endpoint: http://0.0.0.0:8000/mcp
+[DEBUG] Use this URL in your MCP client: http://0.0.0.0:8000/mcp
 ```
 
 ### Configuration du client MCP (HTTP)
 
-Pour un client MCP qui supporte HTTP/SSE :
+Pour un client MCP qui supporte le protocole Streamable HTTP :
 
 ```json
 {
   "mcpServers": {
     "netbox": {
-      "url": "http://localhost:8000/sse",
-      "transport": "sse"
+      "url": "http://localhost:8000/mcp",
+      "transport": "http"
     }
   }
 }
@@ -95,17 +95,16 @@ Ou depuis un autre ordinateur (remplacez `localhost` par l'adresse IP du serveur
 {
   "mcpServers": {
     "netbox": {
-      "url": "http://192.168.1.100:8000/sse",
-      "transport": "sse"
+      "url": "http://192.168.1.100:8000/mcp",
+      "transport": "http"
     }
   }
 }
 ```
 
-### Endpoints disponibles
+### Endpoint disponible
 
-- **SSE Stream:** `http://HOST:PORT/sse` - Endpoint pour la connexion SSE (Server-Sent Events)
-- **Messages:** `http://HOST:PORT/message` - Endpoint pour envoyer des messages au serveur
+- **MCP Endpoint:** `http://HOST:PORT/mcp` - Endpoint unique pour toutes les communications MCP (requêtes, notifications, streaming)
 
 ## Quelle option choisir ?
 
@@ -115,7 +114,7 @@ Ou depuis un autre ordinateur (remplacez `localhost` par l'adresse IP du serveur
 - ✅ Vous voulez la configuration la plus simple
 - ✅ Vous n'avez pas besoin d'accès réseau
 
-### Utilisez HTTP/SSE si :
+### Utilisez HTTP (Streamable) si :
 - ✅ Vous voulez accéder au serveur depuis un autre ordinateur
 - ✅ Vous utilisez un client web
 - ✅ Vous avez plusieurs clients qui doivent se connecter au même serveur
@@ -159,9 +158,9 @@ Si vous utilisez `HOST=0.0.0.0`, le serveur écoute sur **toutes** les interface
 1. Lancez le serveur : `./netbox-mcp-server`
 2. Vérifiez que le serveur écoute :
    ```bash
-   curl http://localhost:8000/sse
+   curl http://localhost:8000/mcp
    ```
-3. Vous devriez voir une réponse SSE (flux d'événements)
+3. Vous devriez recevoir une réponse du serveur MCP
 
 ## Dépannage
 
@@ -217,11 +216,11 @@ Puis configurez Claude Desktop comme expliqué ci-dessus.
 Gardez votre `.env` actuel et connectez votre client MCP à :
 
 ```
-http://localhost:8000/sse
+http://localhost:8000/mcp
 ```
 
 Ou depuis un autre PC sur votre réseau :
 
 ```
-http://VOTRE_IP:8000/sse
+http://VOTRE_IP:8000/mcp
 ```

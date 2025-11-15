@@ -75,17 +75,17 @@ func main() {
 			log.Fatalf("Server error: %v", err)
 		}
 	} else if settings.Transport == "http" {
-		log.Printf("Starting HTTP transport (SSE) on %s:%d", settings.Host, settings.Port)
+		log.Printf("Starting HTTP transport (Streamable HTTP) on %s:%d", settings.Host, settings.Port)
 
-		// Create SSE server
-		sseServer := server.NewSSEServer(s)
+		// Create Streamable HTTP server
+		httpServer := server.NewStreamableHTTPServer(s)
 
 		addr := fmt.Sprintf("%s:%d", settings.Host, settings.Port)
-		log.Printf("SSE server listening on: http://%s", addr)
-		log.Printf("SSE endpoint: http://%s/sse", addr)
-		log.Printf("Message endpoint: http://%s/message", addr)
+		log.Printf("Streamable HTTP server listening on: http://%s", addr)
+		log.Printf("MCP endpoint: http://%s/mcp", addr)
+		log.Printf("Use this URL in your MCP client: http://%s/mcp", addr)
 
-		if err := sseServer.Start(addr); err != nil {
+		if err := httpServer.Start(addr); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	}
