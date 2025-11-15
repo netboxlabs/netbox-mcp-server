@@ -10,7 +10,6 @@ import (
 	"strings"
 )
 
-// NetBoxClient is an interface for NetBox client implementations
 type NetBoxClient interface {
 	Get(endpoint string, params map[string]interface{}) (interface{}, error)
 	Create(endpoint string, data map[string]interface{}) (map[string]interface{}, error)
@@ -21,7 +20,6 @@ type NetBoxClient interface {
 	BulkDelete(endpoint string, ids []int) (bool, error)
 }
 
-// NetBoxRestClient implements NetBoxClient using the REST API
 type NetBoxRestClient struct {
 	BaseURL   string
 	APIURL    string
@@ -30,12 +28,10 @@ type NetBoxRestClient struct {
 	Client    *http.Client
 }
 
-// NewNetBoxRestClient creates a new NetBox REST API client
 func NewNetBoxRestClient(url, token string, verifySSL bool) *NetBoxRestClient {
 	baseURL := strings.TrimRight(url, "/")
 	apiURL := fmt.Sprintf("%s/api", baseURL)
 
-	// Configure HTTP client with optional SSL verification
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: !verifySSL},
 	}
@@ -50,7 +46,6 @@ func NewNetBoxRestClient(url, token string, verifySSL bool) *NetBoxRestClient {
 	}
 }
 
-// buildURL builds the full URL for an API request
 func (c *NetBoxRestClient) buildURL(endpoint string, id *int) string {
 	endpoint = strings.Trim(endpoint, "/")
 	if id != nil {
@@ -59,7 +54,6 @@ func (c *NetBoxRestClient) buildURL(endpoint string, id *int) string {
 	return fmt.Sprintf("%s/%s/", c.APIURL, endpoint)
 }
 
-// makeRequest makes an HTTP request to the NetBox API
 func (c *NetBoxRestClient) makeRequest(method, url string, body interface{}, params map[string]interface{}) (interface{}, error) {
 	var reqBody io.Reader
 	if body != nil {
@@ -75,12 +69,10 @@ func (c *NetBoxRestClient) makeRequest(method, url string, body interface{}, par
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers
 	req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.Token))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// Add query parameters
 	if params != nil && len(params) > 0 {
 		q := req.URL.Query()
 		for key, value := range params {
@@ -119,7 +111,6 @@ func (c *NetBoxRestClient) makeRequest(method, url string, body interface{}, par
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	// For DELETE requests, return success status
 	if method == "DELETE" {
 		return resp.StatusCode == 204, nil
 	}
@@ -134,19 +125,16 @@ func (c *NetBoxRestClient) makeRequest(method, url string, body interface{}, par
 	return result, nil
 }
 
-// Get retrieves one or more objects from NetBox
 func (c *NetBoxRestClient) Get(endpoint string, params map[string]interface{}) (interface{}, error) {
 	url := c.buildURL(endpoint, nil)
 	return c.makeRequest("GET", url, nil, params)
 }
 
-// GetByID retrieves a specific object by ID
 func (c *NetBoxRestClient) GetByID(endpoint string, id int, params map[string]interface{}) (interface{}, error) {
 	url := c.buildURL(endpoint, &id)
 	return c.makeRequest("GET", url, nil, params)
 }
 
-// Create creates a new object in NetBox
 func (c *NetBoxRestClient) Create(endpoint string, data map[string]interface{}) (map[string]interface{}, error) {
 	url := c.buildURL(endpoint, nil)
 	result, err := c.makeRequest("POST", url, data, nil)
@@ -156,7 +144,6 @@ func (c *NetBoxRestClient) Create(endpoint string, data map[string]interface{}) 
 	return result.(map[string]interface{}), nil
 }
 
-// Update updates an existing object in NetBox
 func (c *NetBoxRestClient) Update(endpoint string, id int, data map[string]interface{}) (map[string]interface{}, error) {
 	url := c.buildURL(endpoint, &id)
 	result, err := c.makeRequest("PATCH", url, data, nil)
@@ -166,7 +153,6 @@ func (c *NetBoxRestClient) Update(endpoint string, id int, data map[string]inter
 	return result.(map[string]interface{}), nil
 }
 
-// Delete deletes an object from NetBox
 func (c *NetBoxRestClient) Delete(endpoint string, id int) (bool, error) {
 	url := c.buildURL(endpoint, &id)
 	result, err := c.makeRequest("DELETE", url, nil, nil)
@@ -176,7 +162,6 @@ func (c *NetBoxRestClient) Delete(endpoint string, id int) (bool, error) {
 	return result.(bool), nil
 }
 
-// BulkCreate creates multiple objects in NetBox
 func (c *NetBoxRestClient) BulkCreate(endpoint string, data []map[string]interface{}) ([]map[string]interface{}, error) {
 	url := fmt.Sprintf("%sbulk/", c.buildURL(endpoint, nil))
 	result, err := c.makeRequest("POST", url, data, nil)
@@ -186,7 +171,6 @@ func (c *NetBoxRestClient) BulkCreate(endpoint string, data []map[string]interfa
 	return result.([]map[string]interface{}), nil
 }
 
-// BulkUpdate updates multiple objects in NetBox
 func (c *NetBoxRestClient) BulkUpdate(endpoint string, data []map[string]interface{}) ([]map[string]interface{}, error) {
 	url := fmt.Sprintf("%sbulk/", c.buildURL(endpoint, nil))
 	result, err := c.makeRequest("PATCH", url, data, nil)
@@ -196,7 +180,6 @@ func (c *NetBoxRestClient) BulkUpdate(endpoint string, data []map[string]interfa
 	return result.([]map[string]interface{}), nil
 }
 
-// BulkDelete deletes multiple objects from NetBox
 func (c *NetBoxRestClient) BulkDelete(endpoint string, ids []int) (bool, error) {
 	url := fmt.Sprintf("%sbulk/", c.buildURL(endpoint, nil))
 	data := make([]map[string]interface{}, len(ids))

@@ -30,20 +30,16 @@ var defaultSearchTypes = []string{
 }
 
 func main() {
-	// Load .env file if it exists
 	LoadEnvFile()
 
-	// Initialize settings
 	settings = NewSettings()
 	settings.LoadFromEnv()
 	settings.LoadFromCLI()
 
-	// Validate settings
 	if err := settings.Validate(); err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
-	// Configure logging
 	ConfigureLogging(settings.LogLevel)
 
 	log.Println("Starting NetBox MCP Server")
@@ -54,21 +50,17 @@ func main() {
 		log.Println("WARNING: SSL certificate verification is DISABLED. This is insecure and should only be used for testing.")
 	}
 
-	// Initialize NetBox client
 	netboxClient = NewNetBoxRestClient(settings.NetBoxURL, settings.NetBoxToken, settings.VerifySSL)
 	log.Println("NetBox client initialized successfully")
 
-	// Create MCP server
 	s := server.NewMCPServer(
 		"NetBox",
 		"1.0.0",
 		server.WithToolCapabilities(true),
 	)
 
-	// Register tools
 	registerTools(s)
 
-	// Start server based on transport
 	if settings.Transport == "stdio" {
 		log.Println("Starting stdio transport")
 		if err := server.ServeStdio(s); err != nil {
@@ -77,7 +69,6 @@ func main() {
 	} else if settings.Transport == "http" {
 		log.Printf("Starting HTTP transport (Streamable HTTP) on %s:%d", settings.Host, settings.Port)
 
-		// Create Streamable HTTP server
 		httpServer := server.NewStreamableHTTPServer(s)
 
 		addr := fmt.Sprintf("%s:%d", settings.Host, settings.Port)
@@ -92,7 +83,6 @@ func main() {
 }
 
 func registerTools(s *server.MCPServer) {
-	// Register netbox_get_objects tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_get_objects",
 		Description: buildGetObjectsDescription(),
@@ -140,7 +130,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleGetObjects)
 
-	// Register netbox_get_object_by_id tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_get_object_by_id",
 		Description: "Get detailed information about a specific NetBox object by its ID",
@@ -172,7 +161,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleGetObjectByID)
 
-	// Register netbox_search_objects tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_search_objects",
 		Description: "Perform global search across NetBox infrastructure",
@@ -209,7 +197,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleSearchObjects)
 
-	// Register netbox_get_changelogs tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_get_changelogs",
 		Description: "Get object change records (changelogs) from NetBox",
@@ -225,7 +212,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleGetChangelogs)
 
-	// Register netbox_create_object tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_create_object",
 		Description: "Create a new object in NetBox",
@@ -245,7 +231,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleCreateObject)
 
-	// Register netbox_update_object tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_update_object",
 		Description: "Update an existing object in NetBox",
@@ -269,7 +254,6 @@ func registerTools(s *server.MCPServer) {
 		},
 	}, handleUpdateObject)
 
-	// Register netbox_delete_object tool
 	s.AddTool(mcp.Tool{
 		Name:        "netbox_delete_object",
 		Description: "Delete an object from NetBox",
@@ -313,22 +297,17 @@ Valid object_type values:
 	return desc
 }
 
-// decodeArguments decodes the Arguments field from a CallToolRequest into the target struct
 func decodeArguments(args interface{}, target interface{}) error {
-	// Arguments can be either a string (JSON) or already decoded map[string]interface{}
 	switch v := args.(type) {
 	case string:
-		// It's a JSON string, unmarshal it
 		return json.Unmarshal([]byte(v), target)
 	case map[string]interface{}:
-		// It's already decoded, marshal then unmarshal to convert to target type
 		data, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}
 		return json.Unmarshal(data, target)
 	default:
-		// Try to marshal whatever it is and unmarshal to target
 		data, err := json.Marshal(v)
 		if err != nil {
 			return fmt.Errorf("unsupported arguments type: %T", v)
@@ -352,23 +331,19 @@ func handleGetObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Set defaults
 	if args.Limit == 0 {
 		args.Limit = 5
 	}
 
-	// Validate object type
 	objType, exists := NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
 
-	// Validate filters
 	if err := validateFilters(args.Filters); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Build parameters
 	params := make(map[string]interface{})
 	for k, v := range args.Filters {
 		params[k] = v
@@ -399,7 +374,6 @@ func handleGetObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		}
 	}
 
-	// Make API call
 	result, err := netboxClient.Get(objType.Endpoint, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
@@ -421,13 +395,11 @@ func handleGetObjectByID(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Validate object type
 	objType, exists := NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
 
-	// Build parameters
 	params := make(map[string]interface{})
 	if len(args.Fields) > 0 {
 		params["fields"] = strings.Join(args.Fields, ",")
@@ -436,7 +408,6 @@ func handleGetObjectByID(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		params["brief"] = "1"
 	}
 
-	// Make API call
 	result, err := netboxClient.GetByID(objType.Endpoint, args.ObjectID, params)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
@@ -458,7 +429,6 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Set defaults
 	if args.Limit == 0 {
 		args.Limit = 5
 	}
@@ -467,14 +437,12 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		searchTypes = defaultSearchTypes
 	}
 
-	// Validate object types
 	for _, objType := range searchTypes {
 		if _, exists := NetBoxObjectTypes[objType]; !exists {
 			return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", objType)), nil
 		}
 	}
 
-	// Build results
 	results := make(map[string]interface{})
 	for _, objType := range searchTypes {
 		params := map[string]interface{}{
@@ -491,7 +459,6 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 			continue
 		}
 
-		// Extract results array from paginated response
 		if resultMap, ok := result.(map[string]interface{}); ok {
 			if resultArray, ok := resultMap["results"].([]interface{}); ok {
 				results[objType] = resultArray
@@ -516,7 +483,6 @@ func handleGetChangelogs(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Make API call
 	result, err := netboxClient.Get("core/object-changes", args.Filters)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
@@ -535,7 +501,6 @@ func validateFilters(filters map[string]interface{}) error {
 	}
 
 	for filterName := range filters {
-		// Skip special parameters
 		if filterName == "limit" || filterName == "offset" || filterName == "fields" || filterName == "q" {
 			continue
 		}
@@ -546,12 +511,10 @@ func validateFilters(filters map[string]interface{}) error {
 
 		parts := strings.Split(filterName, "__")
 
-		// Allow field__suffix pattern
 		if len(parts) == 2 && validSuffixes[parts[1]] {
 			continue
 		}
 
-		// Block multi-hop patterns and invalid suffixes
 		if len(parts) >= 2 {
 			return fmt.Errorf("invalid filter '%s': Multi-hop relationship traversal or invalid lookup suffix not supported", filterName)
 		}
@@ -570,13 +533,11 @@ func handleCreateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Validate object type
 	objType, exists := NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
 
-	// Make API call to create object
 	result, err := netboxClient.Create(objType.Endpoint, args.Data)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
@@ -597,13 +558,11 @@ func handleUpdateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Validate object type
 	objType, exists := NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
 
-	// Make API call to update object
 	result, err := netboxClient.Update(objType.Endpoint, args.ObjectID, args.Data)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
@@ -623,13 +582,11 @@ func handleDeleteObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
-	// Validate object type
 	objType, exists := NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
 
-	// Make API call to delete object
 	success, err := netboxClient.Delete(objType.Endpoint, args.ObjectID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil

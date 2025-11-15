@@ -12,25 +12,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Settings holds the configuration for the NetBox MCP Server
 type Settings struct {
-	// Core NetBox Settings
 	NetBoxURL   string
 	NetBoxToken string
-
-	// Transport Settings
-	Transport string // "stdio" or "http"
-	Host      string
-	Port      int
-
-	// Security Settings
-	VerifySSL bool
-
-	// Observability Settings
-	LogLevel string
+	Transport   string
+	Host        string
+	Port        int
+	VerifySSL   bool
+	LogLevel    string
 }
 
-// NewSettings creates a new Settings instance with default values
 func NewSettings() *Settings {
 	return &Settings{
 		Transport: "stdio",
@@ -41,9 +32,7 @@ func NewSettings() *Settings {
 	}
 }
 
-// LoadEnvFile loads environment variables from .env file if it exists
 func LoadEnvFile() error {
-	// Try to find .env file in current directory or parent directories
 	paths := []string{
 		".env",
 		"../.env",
@@ -52,20 +41,15 @@ func LoadEnvFile() error {
 
 	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
-			// File exists, try to load it
 			if err := godotenv.Load(path); err == nil {
 				log.Printf("Loaded environment variables from: %s", path)
 				return nil
 			}
 		}
 	}
-
-	// .env file not found or failed to load, but this is not an error
-	// Environment variables can be set directly
 	return nil
 }
 
-// LoadFromEnv loads settings from environment variables
 func (s *Settings) LoadFromEnv() {
 	if url := os.Getenv("NETBOX_URL"); url != "" {
 		s.NetBoxURL = url
@@ -92,20 +76,18 @@ func (s *Settings) LoadFromEnv() {
 	}
 }
 
-// LoadFromCLI parses command-line arguments and overrides settings
 func (s *Settings) LoadFromCLI() {
-	netboxURL := flag.String("netbox-url", "", "Base URL of the NetBox instance (e.g., https://netbox.example.com/)")
+	netboxURL := flag.String("netbox-url", "", "Base URL of the NetBox instance")
 	netboxToken := flag.String("netbox-token", "", "API token for NetBox authentication")
 	transport := flag.String("transport", "", "MCP transport protocol (stdio or http)")
-	host := flag.String("host", "", "Host address for HTTP server (default: 127.0.0.1)")
-	port := flag.Int("port", 0, "Port for HTTP server (default: 8000)")
-	verifySSL := flag.Bool("verify-ssl", true, "Verify SSL certificates (default: true)")
+	host := flag.String("host", "", "Host address for HTTP server")
+	port := flag.Int("port", 0, "Port for HTTP server")
+	verifySSL := flag.Bool("verify-ssl", true, "Verify SSL certificates")
 	noVerifySSL := flag.Bool("no-verify-ssl", false, "Disable SSL certificate verification")
-	logLevel := flag.String("log-level", "", "Logging verbosity level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+	logLevel := flag.String("log-level", "", "Logging verbosity level")
 
 	flag.Parse()
 
-	// Override settings with CLI arguments if provided
 	if *netboxURL != "" {
 		s.NetBoxURL = *netboxURL
 	}
@@ -131,7 +113,6 @@ func (s *Settings) LoadFromCLI() {
 	}
 }
 
-// Validate validates the settings and returns an error if invalid
 func (s *Settings) Validate() error {
 	if s.NetBoxURL == "" {
 		return fmt.Errorf("NETBOX_URL is required")
@@ -157,7 +138,6 @@ func (s *Settings) Validate() error {
 	return nil
 }
 
-// GetEffectiveConfigSummary returns a non-secret summary of the effective configuration
 func (s *Settings) GetEffectiveConfigSummary() map[string]interface{} {
 	summary := map[string]interface{}{
 		"netbox_url":   s.NetBoxURL,
@@ -176,13 +156,9 @@ func (s *Settings) GetEffectiveConfigSummary() map[string]interface{} {
 	return summary
 }
 
-// ConfigureLogging configures logging based on the log level
 func ConfigureLogging(logLevel string) {
-	// Set log flags to include date and time
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	// In a more complete implementation, you would configure different log levels
-	// For now, we just set the basic logger
 	switch logLevel {
 	case "DEBUG":
 		log.SetPrefix("[DEBUG] ")
