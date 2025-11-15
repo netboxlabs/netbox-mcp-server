@@ -47,6 +47,8 @@ Configuration follows this precedence (highest to lowest):
 
 ## Usage
 
+> 📘 **Pour une configuration détaillée du client MCP, voir [MCP_CLIENT_CONFIG.md](./MCP_CLIENT_CONFIG.md)**
+
 ### Using Environment Variables
 
 ```bash

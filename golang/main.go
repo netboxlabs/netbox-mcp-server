@@ -75,9 +75,17 @@ func main() {
 			log.Fatalf("Server error: %v", err)
 		}
 	} else if settings.Transport == "http" {
-		log.Printf("Starting HTTP transport on %s:%d", settings.Host, settings.Port)
-		log.Printf("Note: HTTP transport implementation needs SSE support - defaulting to stdio for now")
-		if err := server.ServeStdio(s); err != nil {
+		log.Printf("Starting HTTP transport (SSE) on %s:%d", settings.Host, settings.Port)
+
+		// Create SSE server
+		sseServer := server.NewSSEServer(s)
+
+		addr := fmt.Sprintf("%s:%d", settings.Host, settings.Port)
+		log.Printf("SSE server listening on: http://%s", addr)
+		log.Printf("SSE endpoint: http://%s/sse", addr)
+		log.Printf("Message endpoint: http://%s/message", addr)
+
+		if err := sseServer.Start(addr); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	}
