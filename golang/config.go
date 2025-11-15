@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 // Settings holds the configuration for the NetBox MCP Server
@@ -36,6 +39,30 @@ func NewSettings() *Settings {
 		VerifySSL: true,
 		LogLevel:  "INFO",
 	}
+}
+
+// LoadEnvFile loads environment variables from .env file if it exists
+func LoadEnvFile() error {
+	// Try to find .env file in current directory or parent directories
+	paths := []string{
+		".env",
+		"../.env",
+		filepath.Join(os.Getenv("HOME"), ".env"),
+	}
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			// File exists, try to load it
+			if err := godotenv.Load(path); err == nil {
+				log.Printf("Loaded environment variables from: %s", path)
+				return nil
+			}
+		}
+	}
+
+	// .env file not found or failed to load, but this is not an error
+	// Environment variables can be set directly
+	return nil
 }
 
 // LoadFromEnv loads settings from environment variables

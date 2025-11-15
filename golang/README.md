@@ -63,7 +63,19 @@ export NETBOX_TOKEN="your_api_token_here"
 
 ### Example with .env file
 
-Create a `.env` file in your project root:
+The application automatically loads environment variables from a `.env` file if it exists in:
+- The current directory (`.env`)
+- The parent directory (`../.env`)
+- Your home directory (`$HOME/.env`)
+
+Create a `.env` file (you can copy `.env.example`):
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+Example `.env` file:
 
 ```env
 NETBOX_URL=https://netbox.example.com
@@ -72,13 +84,13 @@ VERIFY_SSL=true
 LOG_LEVEL=INFO
 ```
 
-Then run:
+Then simply run:
 
 ```bash
-# Load environment variables
-export $(cat .env | xargs)
 ./netbox-mcp-server
 ```
+
+The `.env` file will be automatically loaded!
 
 ## Available MCP Tools
 

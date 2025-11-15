@@ -30,6 +30,9 @@ var defaultSearchTypes = []string{
 }
 
 func main() {
+	// Load .env file if it exists
+	LoadEnvFile()
+
 	// Initialize settings
 	settings = NewSettings()
 	settings.LoadFromEnv()
