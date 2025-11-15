@@ -249,6 +249,30 @@ Valid object_type values:
 	return desc
 }
 
+// decodeArguments decodes the Arguments field from a CallToolRequest into the target struct
+func decodeArguments(args interface{}, target interface{}) error {
+	// Arguments can be either a string (JSON) or already decoded map[string]interface{}
+	switch v := args.(type) {
+	case string:
+		// It's a JSON string, unmarshal it
+		return json.Unmarshal([]byte(v), target)
+	case map[string]interface{}:
+		// It's already decoded, marshal then unmarshal to convert to target type
+		data, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(data, target)
+	default:
+		// Try to marshal whatever it is and unmarshal to target
+		data, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("unsupported arguments type: %T", v)
+		}
+		return json.Unmarshal(data, target)
+	}
+}
+
 func handleGetObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		ObjectType string                 `json:"object_type"`
@@ -260,7 +284,7 @@ func handleGetObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		Ordering   interface{}            `json:"ordering"`
 	}
 
-	if err := json.Unmarshal([]byte(request.Params.Arguments.(string)), &args); err != nil {
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
@@ -329,7 +353,7 @@ func handleGetObjectByID(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		Brief      bool     `json:"brief"`
 	}
 
-	if err := json.Unmarshal([]byte(request.Params.Arguments.(string)), &args); err != nil {
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
@@ -366,7 +390,7 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		Limit       int      `json:"limit"`
 	}
 
-	if err := json.Unmarshal([]byte(request.Params.Arguments.(string)), &args); err != nil {
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
@@ -424,7 +448,7 @@ func handleGetChangelogs(ctx context.Context, request mcp.CallToolRequest) (*mcp
 		Filters map[string]interface{} `json:"filters"`
 	}
 
-	if err := json.Unmarshal([]byte(request.Params.Arguments.(string)), &args); err != nil {
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
 	}
 
