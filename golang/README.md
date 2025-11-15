@@ -4,12 +4,13 @@ This is a Golang implementation of the NetBox MCP (Model Context Protocol) Serve
 
 ## Overview
 
-The NetBox MCP Server provides a read-only interface to NetBox through the Model Context Protocol. This Golang version offers the same functionality as the Python version with improved performance and easier deployment as a single binary.
+The NetBox MCP Server provides a complete interface to NetBox through the Model Context Protocol. This Golang version offers the same functionality as the Python version with improved performance and easier deployment as a single binary.
 
 ## Features
 
-- **Read-only NetBox API access** via MCP tools
+- **Full NetBox API access** via MCP tools (read and write operations)
 - **Object querying** with filtering, pagination, and field selection
+- **Object creation, update, and deletion** for all NetBox object types
 - **Global search** across multiple NetBox object types
 - **Changelog access** for tracking changes
 - **Configurable via** environment variables or CLI arguments
@@ -135,6 +136,65 @@ Get object change records (changelogs) from NetBox.
 
 **Parameters:**
 - `filters` (object, required): Dictionary of filters to apply
+
+### 5. `netbox_create_object`
+
+Create a new object in NetBox.
+
+**Parameters:**
+- `object_type` (string, required): NetBox object type (e.g., "dcim.device", "ipam.ipaddress")
+- `data` (object, required): Object data to create (must include all required fields for the object type)
+
+**Example:**
+```json
+{
+  "object_type": "dcim.site",
+  "data": {
+    "name": "New Site",
+    "slug": "new-site",
+    "status": "active"
+  }
+}
+```
+
+### 6. `netbox_update_object`
+
+Update an existing object in NetBox.
+
+**Parameters:**
+- `object_type` (string, required): NetBox object type
+- `object_id` (integer, required): The numeric ID of the object to update
+- `data` (object, required): Object data to update (only include fields to be changed)
+
+**Example:**
+```json
+{
+  "object_type": "dcim.device",
+  "object_id": 123,
+  "data": {
+    "status": "offline",
+    "comments": "Device under maintenance"
+  }
+}
+```
+
+### 7. `netbox_delete_object`
+
+Delete an object from NetBox.
+
+**Parameters:**
+- `object_type` (string, required): NetBox object type
+- `object_id` (integer, required): The numeric ID of the object to delete
+
+**Example:**
+```json
+{
+  "object_type": "ipam.ipaddress",
+  "object_id": 456
+}
+```
+
+**⚠️ Warning:** This operation is irreversible. Make sure you want to delete the object before calling this tool.
 
 ## Supported Object Types
 

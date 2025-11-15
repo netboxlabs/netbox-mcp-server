@@ -224,6 +224,70 @@ func registerTools(s *server.MCPServer) {
 			Required: []string{"filters"},
 		},
 	}, handleGetChangelogs)
+
+	// Register netbox_create_object tool
+	s.AddTool(mcp.Tool{
+		Name:        "netbox_create_object",
+		Description: "Create a new object in NetBox",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"object_type": map[string]interface{}{
+					"type":        "string",
+					"description": "The NetBox object type (e.g., 'dcim.device', 'ipam.ipaddress')",
+				},
+				"data": map[string]interface{}{
+					"type":        "object",
+					"description": "Object data to create (must include all required fields for the object type)",
+				},
+			},
+			Required: []string{"object_type", "data"},
+		},
+	}, handleCreateObject)
+
+	// Register netbox_update_object tool
+	s.AddTool(mcp.Tool{
+		Name:        "netbox_update_object",
+		Description: "Update an existing object in NetBox",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"object_type": map[string]interface{}{
+					"type":        "string",
+					"description": "The NetBox object type (e.g., 'dcim.device', 'ipam.ipaddress')",
+				},
+				"object_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "The numeric ID of the object to update",
+				},
+				"data": map[string]interface{}{
+					"type":        "object",
+					"description": "Object data to update (only include fields to be changed)",
+				},
+			},
+			Required: []string{"object_type", "object_id", "data"},
+		},
+	}, handleUpdateObject)
+
+	// Register netbox_delete_object tool
+	s.AddTool(mcp.Tool{
+		Name:        "netbox_delete_object",
+		Description: "Delete an object from NetBox",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"object_type": map[string]interface{}{
+					"type":        "string",
+					"description": "The NetBox object type (e.g., 'dcim.device', 'ipam.ipaddress')",
+				},
+				"object_id": map[string]interface{}{
+					"type":        "integer",
+					"description": "The numeric ID of the object to delete",
+				},
+			},
+			Required: []string{"object_type", "object_id"},
+		},
+	}, handleDeleteObject)
 }
 
 func buildGetObjectsDescription() string {
@@ -494,4 +558,86 @@ func validateFilters(filters map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+func handleCreateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		ObjectType string                 `json:"object_type"`
+		Data       map[string]interface{} `json:"data"`
+	}
+
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
+	}
+
+	// Validate object type
+	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	if !exists {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
+	}
+
+	// Make API call to create object
+	result, err := netboxClient.Create(objType.Endpoint, args.Data)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	return mcp.NewToolResultText(string(resultJSON)), nil
+}
+
+func handleUpdateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		ObjectType string                 `json:"object_type"`
+		ObjectID   int                    `json:"object_id"`
+		Data       map[string]interface{} `json:"data"`
+	}
+
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
+	}
+
+	// Validate object type
+	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	if !exists {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
+	}
+
+	// Make API call to update object
+	result, err := netboxClient.Update(objType.Endpoint, args.ObjectID, args.Data)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	return mcp.NewToolResultText(string(resultJSON)), nil
+}
+
+func handleDeleteObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		ObjectType string `json:"object_type"`
+		ObjectID   int    `json:"object_id"`
+	}
+
+	if err := decodeArguments(request.Params.Arguments, &args); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid arguments: %v", err)), nil
+	}
+
+	// Validate object type
+	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	if !exists {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
+	}
+
+	// Make API call to delete object
+	success, err := netboxClient.Delete(objType.Endpoint, args.ObjectID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("API error: %v", err)), nil
+	}
+
+	if !success {
+		return mcp.NewToolResultError("Delete operation failed"), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf(`{"success": true, "message": "Object %s with ID %d deleted successfully"}`, args.ObjectType, args.ObjectID)), nil
 }
