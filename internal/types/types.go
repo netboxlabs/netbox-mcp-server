@@ -1,4 +1,4 @@
-package main
+package types
 
 // NetBoxObjectType represents a NetBox object type configuration
 type NetBoxObjectType struct {

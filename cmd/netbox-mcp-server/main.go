@@ -8,13 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MyEcoria/netbox-mcp-server/internal/client"
+	"github.com/MyEcoria/netbox-mcp-server/internal/config"
+	"github.com/MyEcoria/netbox-mcp-server/internal/types"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 var (
-	netboxClient *NetBoxRestClient
-	settings     *Settings
+	netboxClient *client.NetBoxRestClient
+	settings     *config.Settings
 )
 
 // Default search types for global search
@@ -30,9 +33,9 @@ var defaultSearchTypes = []string{
 }
 
 func main() {
-	LoadEnvFile()
+	config.LoadEnvFile()
 
-	settings = NewSettings()
+	settings = config.NewSettings()
 	settings.LoadFromEnv()
 	settings.LoadFromCLI()
 
@@ -40,7 +43,7 @@ func main() {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
-	ConfigureLogging(settings.LogLevel)
+	config.ConfigureLogging(settings.LogLevel)
 
 	log.Println("Starting NetBox MCP Server")
 	configSummary, _ := json.MarshalIndent(settings.GetEffectiveConfigSummary(), "", "  ")
@@ -50,7 +53,7 @@ func main() {
 		log.Println("WARNING: SSL certificate verification is DISABLED. This is insecure and should only be used for testing.")
 	}
 
-	netboxClient = NewNetBoxRestClient(settings.NetBoxURL, settings.NetBoxToken, settings.VerifySSL)
+	netboxClient = client.NewNetBoxRestClient(settings.NetBoxURL, settings.NetBoxToken, settings.VerifySSL)
 	log.Println("NetBox client initialized successfully")
 
 	s := server.NewMCPServer(
@@ -275,8 +278,8 @@ func registerTools(s *server.MCPServer) {
 }
 
 func buildGetObjectsDescription() string {
-	objectTypes := make([]string, 0, len(NetBoxObjectTypes))
-	for k := range NetBoxObjectTypes {
+	objectTypes := make([]string, 0, len(types.NetBoxObjectTypes))
+	for k := range types.NetBoxObjectTypes {
 		objectTypes = append(objectTypes, k)
 	}
 	sort.Strings(objectTypes)
@@ -337,7 +340,7 @@ func handleGetObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 
 	log.Printf("MCP Tool Call: netbox_get_objects - object_type=%s, filters=%v, limit=%d", args.ObjectType, args.Filters, args.Limit)
 
-	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	objType, exists := types.NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
@@ -399,7 +402,7 @@ func handleGetObjectByID(ctx context.Context, request mcp.CallToolRequest) (*mcp
 
 	log.Printf("MCP Tool Call: netbox_get_object_by_id - object_type=%s, object_id=%d", args.ObjectType, args.ObjectID)
 
-	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	objType, exists := types.NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
@@ -444,7 +447,7 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 	log.Printf("MCP Tool Call: netbox_search_objects - query=%s, object_types=%v, limit=%d", args.Query, searchTypes, args.Limit)
 
 	for _, objType := range searchTypes {
-		if _, exists := NetBoxObjectTypes[objType]; !exists {
+		if _, exists := types.NetBoxObjectTypes[objType]; !exists {
 			return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", objType)), nil
 		}
 	}
@@ -459,7 +462,7 @@ func handleSearchObjects(ctx context.Context, request mcp.CallToolRequest) (*mcp
 			params["fields"] = strings.Join(args.Fields, ",")
 		}
 
-		result, err := netboxClient.Get(NetBoxObjectTypes[objType].Endpoint, params)
+		result, err := netboxClient.Get(types.NetBoxObjectTypes[objType].Endpoint, params)
 		if err != nil {
 			results[objType] = []interface{}{}
 			continue
@@ -543,7 +546,7 @@ func handleCreateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	log.Printf("MCP Tool Call: netbox_create_object - object_type=%s, data=%v", args.ObjectType, args.Data)
 
-	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	objType, exists := types.NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
@@ -570,7 +573,7 @@ func handleUpdateObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	log.Printf("MCP Tool Call: netbox_update_object - object_type=%s, object_id=%d, data=%v", args.ObjectType, args.ObjectID, args.Data)
 
-	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	objType, exists := types.NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
@@ -596,7 +599,7 @@ func handleDeleteObject(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	log.Printf("MCP Tool Call: netbox_delete_object - object_type=%s, object_id=%d", args.ObjectType, args.ObjectID)
 
-	objType, exists := NetBoxObjectTypes[args.ObjectType]
+	objType, exists := types.NetBoxObjectTypes[args.ObjectType]
 	if !exists {
 		return mcp.NewToolResultError(fmt.Sprintf("Invalid object_type: %s", args.ObjectType)), nil
 	}
