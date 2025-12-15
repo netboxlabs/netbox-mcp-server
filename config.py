@@ -25,14 +25,14 @@ class Settings(BaseSettings):
     """API token for NetBox authentication (treated as secret)"""
 
     # ===== Transport Settings =====
-    transport: Literal["stdio", "http"] = "stdio"
-    """MCP transport protocol to use (stdio for Claude Desktop, http for web clients)"""
+    transport: Literal["stdio", "http", "sse"] = "stdio"
+    """MCP transport protocol to use (stdio for Claude Desktop, http/sse for servers)"""
 
     host: str = "127.0.0.1"
-    """Host address to bind HTTP server (only used when transport='http')"""
+    """Bind host (used when transport is 'http' or 'sse')"""
 
     port: int = 8000
-    """Port to bind HTTP server (only used when transport='http')"""
+    """Port to bind server (used when transport is 'http' or 'sse')"""
 
     # ===== Security Settings =====
     verify_ssl: bool = True
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_http_transport_requirements(self) -> "Settings":
-        """No additional validation needed for HTTP transport; defaults are appropriate."""
+        """No additional validation needed for HTTP/SSE transport; defaults are appropriate."""
         return self
 
     def get_effective_config_summary(self) -> dict:
@@ -87,8 +87,8 @@ class Settings(BaseSettings):
             "netbox_url": str(self.netbox_url),
             "netbox_token": "***REDACTED***",
             "transport": self.transport,
-            "host": self.host if self.transport == "http" else "N/A",
-            "port": self.port if self.transport == "http" else "N/A",
+            "host": self.host if self.transport in ("http", "sse") else "N/A",
+            "port": self.port if self.transport in ("http", "sse") else "N/A",
             "verify_ssl": self.verify_ssl,
             "log_level": self.log_level,
         }
@@ -121,20 +121,11 @@ def configure_logging(
         },
         "loggers": {
             # Suppress noisy HTTP client logs unless DEBUG
-            "urllib3": {
-                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
-            },
-            "httpx": {
-                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
-            },
-            "requests": {
-                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
-            },
+            "urllib3": {"level": "WARNING" if log_level != "DEBUG" else "DEBUG"},
+            "httpx": {"level": "WARNING" if log_level != "DEBUG" else "DEBUG"},
+            "requests": {"level": "WARNING" if log_level != "DEBUG" else "DEBUG"},
         },
-        "root": {
-            "level": log_level,
-            "handlers": ["console"],
-        },
+        "root": {"level": log_level, "handlers": ["console"]},
     }
 
     logging.config.dictConfig(config)

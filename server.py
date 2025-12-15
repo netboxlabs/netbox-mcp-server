@@ -10,6 +10,9 @@ from config import Settings, configure_logging
 from netbox_client import NetBoxRestClient
 from netbox_types import NETBOX_OBJECT_TYPES
 
+mcp = FastMCP("NetBox")
+netbox: NetBoxRestClient | None = None
+
 
 def parse_cli_args() -> dict[str, Any]:
     """
@@ -39,18 +42,18 @@ def parse_cli_args() -> dict[str, Any]:
     parser.add_argument(
         "--transport",
         type=str,
-        choices=["stdio", "http"],
-        help="MCP transport protocol (default: stdio)",
+        choices=["stdio", "http", "sse"],
+        help="MCP transport protocol (default: stdio). Use 'sse' for Docker.",
     )
     parser.add_argument(
         "--host",
         type=str,
-        help="Host address for HTTP server (default: 127.0.0.1)",
+        help="Bind host for HTTP/SSE server (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        help="Port for HTTP server (default: 8000)",
+        help="Port for HTTP/SSE server (default: 8000)",
     )
 
     # Security settings
@@ -100,13 +103,13 @@ def parse_cli_args() -> dict[str, Any]:
 
 # Default object types for global search
 DEFAULT_SEARCH_TYPES = [
-    "dcim.device",  # Most common search target
-    "dcim.site",  # Site names frequently searched
-    "ipam.ipaddress",  # IP searches very common
-    "dcim.interface",  # Interface names/descriptions
-    "dcim.rack",  # Rack identifiers
-    "ipam.vlan",  # VLAN names/IDs
-    "circuits.circuit",  # Circuit identifiers
+    "dcim.device",              # Most common search target
+    "dcim.site",                # Site names frequently searched
+    "ipam.ipaddress",           # IP searches very common
+    "dcim.interface",           # Interface names/descriptions
+    "dcim.rack",                # Rack identifiers
+    "ipam.vlan",                # VLAN names/IDs
+    "circuits.circuit",         # Circuit identifiers
     "virtualization.virtualmachine",  # VM names
 ]
 
@@ -117,39 +120,10 @@ netbox = None
 def validate_filters(filters: dict) -> None:
     """
     Validate that filters don't use multi-hop relationship traversal.
-
-    NetBox API does not support nested relationship queries like:
-    - device__site_id (filtering by related object's field)
-    - interface__device__site (multiple relationship hops)
-
-    Valid patterns:
-    - Direct field filters: site_id, name, status
-    - Lookup expressions: name__ic, status__in, id__gt
-
-    Args:
-        filters: Dictionary of filter parameters
-
-    Raises:
-        ValueError: If filter uses invalid multi-hop relationship traversal
     """
     VALID_SUFFIXES = {
-        "n",
-        "ic",
-        "nic",
-        "isw",
-        "nisw",
-        "iew",
-        "niew",
-        "ie",
-        "nie",
-        "empty",
-        "regex",
-        "iregex",
-        "lt",
-        "lte",
-        "gt",
-        "gte",
-        "in",
+        "n", "ic", "nic", "isw", "nisw", "iew", "niew", "ie", "nie",
+        "empty", "regex", "iregex", "lt", "lte", "gt", "gte", "in",
     }
 
     for filter_name in filters:
@@ -304,29 +278,6 @@ def netbox_get_object_by_id(
 ):
     """
     Get detailed information about a specific NetBox object by its ID.
-
-    Args:
-        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
-        object_id: The numeric ID of the object
-        fields: Optional list of specific fields to return
-                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
-                Field filtering reduces response payload by 80-90% and is critical for performance.
-
-                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
-                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
-
-                Examples:
-                - For basic info: ['id', 'name', 'status']
-                - For devices: ['id', 'name', 'status', 'site']
-                - For IP addresses: ['address', 'dns_name', 'vrf', 'status']
-
-                Uses NetBox's native field filtering via ?fields= parameter.
-                **Always specify only the fields you actually need.**
-        brief: returns only a minimal representation of the object in the response.
-               This is useful when you need only a summary of the object without any related data.
-
-    Returns:
-        Object dict (complete or with only requested fields based on fields parameter)
     """
     # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
@@ -350,57 +301,8 @@ def netbox_get_object_by_id(
 def netbox_get_changelogs(filters: dict):
     """
     Get object change records (changelogs) from NetBox based on filters.
-
-    Args:
-        filters: dict of filters to apply to the API call based on the NetBox API filtering options
-
-    Returns:
-        Paginated response dict with the following structure:
-            - count: Total number of changelog entries matching the query
-                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
-            - next: URL to next page (or null if no more pages)
-                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
-            - previous: URL to previous page (or null if on first page)
-                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
-            - results: Array of changelog entries for this page
-                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
-
-    Filtering options include:
-    - user_id: Filter by user ID who made the change
-    - user: Filter by username who made the change
-    - changed_object_type_id: Filter by ContentType ID of the changed object
-    - changed_object_id: Filter by ID of the changed object
-    - object_repr: Filter by object representation (usually contains object name)
-    - action: Filter by action type (created, updated, deleted)
-    - time_before: Filter for changes made before a given time (ISO 8601 format)
-    - time_after: Filter for changes made after a given time (ISO 8601 format)
-    - q: Search term to filter by object representation
-
-    Example:
-    To find all changes made to a specific device with ID 123:
-    {"changed_object_type_id": "dcim.device", "changed_object_id": 123}
-
-    To find all deletions in the last 24 hours:
-    {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
-
-    Each changelog entry contains:
-    - id: The unique identifier of the changelog entry
-    - user: The user who made the change
-    - user_name: The username of the user who made the change
-    - request_id: The unique identifier of the request that made the change
-    - action: The type of action performed (created, updated, deleted)
-    - changed_object_type: The type of object that was changed
-    - changed_object_id: The ID of the object that was changed
-    - object_repr: String representation of the changed object
-    - object_data: The object's data after the change (null for deletions)
-    - object_data_v2: Enhanced data representation
-    - prechange_data: The object's data before the change (null for creations)
-    - postchange_data: The object's data after the change (null for deletions)
-    - time: The timestamp when the change was made
     """
     endpoint = "core/object-changes"
-
-    # Make API call
     return netbox.get(endpoint, params=filters)
 
 
@@ -410,46 +312,6 @@ def netbox_get_changelogs(filters: dict):
 
     Searches names, descriptions, IP addresses, serial numbers, asset tags,
     and other key fields across multiple object types.
-
-    Args:
-        query: Search term (device names, IPs, serial numbers, hostnames, site names)
-               Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
-        object_types: Limit search to specific types (optional)
-                     Default: [""" + "', '".join(DEFAULT_SEARCH_TYPES) + """]
-                     Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
-        fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
-                - None or [] = returns all fields (no filtering)
-                - ['id', 'name'] = returns only specified fields
-                Examples: ['id', 'name', 'status'], ['address', 'dns_name']
-                Uses NetBox's native field filtering via ?fields= parameter
-        limit: Max results per object type (default 5, max 100)
-
-    Returns:
-        Dictionary with object_type keys and list of matching objects.
-        All searched types present in result (empty list if no matches).
-
-    Example:
-        # Search for anything matching "switch"
-        results = netbox_search_objects('switch')
-        # Returns: {
-        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],
-        #   'dcim.site': [],
-        #   ...
-        # }
-
-        # Search for IP address
-        results = netbox_search_objects('192.168.1.100')
-        # Returns: {
-        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],
-        #   ...
-        # }
-
-        # Limit search to specific types with field projection
-        results = netbox_search_objects(
-            'NYC',
-            object_types=['dcim.site', 'dcim.location'],
-            fields=['id', 'name', 'status']
-        )
     """
 )
 def netbox_search_objects(
@@ -498,12 +360,14 @@ def netbox_search_objects(
 
     return results
 
+
 def _endpoint_for_type(object_type: str) -> str:
     """
     Returns partial API endpoint prefix for the given object type.
     e.g., "dcim.device" -> "dcim/devices"
     """
     return NETBOX_OBJECT_TYPES[object_type]['endpoint']
+
 
 if __name__ == "__main__":
     cli_overlay: dict[str, Any] = parse_cli_args()
@@ -526,20 +390,19 @@ if __name__ == "__main__":
             "This is insecure and should only be used for testing."
         )
 
-    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:
+    if settings.transport in ("http", "sse") and settings.host in ["0.0.0.0", "::", "[::]"]:
         logger.warning(
-            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces (IPv4/IPv6). "
+            f"{settings.transport.upper()} transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces (IPv4/IPv6). "
             "This is insecure and should only be used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
         )
-    elif settings.transport == "http" and settings.host not in [
+    elif settings.transport in ("http", "sse") and settings.host not in [
         "127.0.0.1",
         "localhost",
     ]:
         logger.info(
-            f"HTTP transport is bound to {settings.host}:{settings.port}. "
+            f"{settings.transport.upper()} transport is bound to {settings.host}:{settings.port}. "
             "Ensure this is secured with TLS/reverse proxy if exposed to network."
         )
-
     try:
         netbox = NetBoxRestClient(
             url=str(settings.netbox_url),
@@ -558,6 +421,9 @@ if __name__ == "__main__":
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
             mcp.run(transport="http", host=settings.host, port=settings.port)
+        elif settings.transport == "sse":
+            logger.info(f"Starting SSE transport on {settings.host}:{settings.port} (endpoint: /sse)")
+            mcp.run(transport="sse", host=settings.host, port=settings.port)
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
         sys.exit(1)
