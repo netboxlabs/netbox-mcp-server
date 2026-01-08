@@ -244,9 +244,9 @@ def validate_filters(filters: dict) -> None:
 
     Valid object_type values:
 
-    """ +
-    "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())) +
     """
+    + "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    + """
 
     See NetBox API documentation for filtering options for each object type.
     """
@@ -419,7 +419,9 @@ def netbox_get_changelogs(filters: dict):
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
         object_types: Limit search to specific types (optional)
-                     Default: [""" + "', '".join(DEFAULT_SEARCH_TYPES) + """]
+                     Default: ["""
+    + "', '".join(DEFAULT_SEARCH_TYPES)
+    + """]
                      Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
         fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
                 - None or [] = returns all fields (no filtering)
@@ -502,12 +504,13 @@ def netbox_search_objects(
 
     return results
 
+
 def _endpoint_for_type(object_type: str) -> str:
     """
     Returns partial API endpoint prefix for the given object type.
     e.g., "dcim.device" -> "dcim/devices"
     """
-    return NETBOX_OBJECT_TYPES[object_type]['endpoint']
+    return NETBOX_OBJECT_TYPES[object_type]["endpoint"]
 
 
 def main() -> None:
