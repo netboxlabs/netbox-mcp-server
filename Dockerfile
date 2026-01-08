@@ -1,7 +1,9 @@
-FROM python:3.13-alpine3.22 AS builder
+FROM python:3.14-alpine3.23 AS builder
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir uv
+RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
+    && pip install --root-user-action=ignore --no-cache-dir uv
+
+ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
@@ -16,7 +18,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 
-FROM python:3.13-alpine3.22
+FROM python:3.14-alpine3.23
+LABEL org.opencontainers.image.title="NetBox MCP Server" \
+      org.opencontainers.image.description="A read-only MCP server for NetBox" \
+      org.opencontainers.image.url="https://github.com/netboxlabs/netbox-mcp-server" \
+      org.opencontainers.image.source="https://github.com/netboxlabs/netbox-mcp-server" \
+      org.opencontainers.image.vendor="NetBox Labs" \
+      org.opencontainers.image.licenses="Apache-2.0"
 ENV PYTHONUNBUFFERED=1
 
 RUN apk add --no-cache ca-certificates \
