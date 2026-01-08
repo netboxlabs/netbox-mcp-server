@@ -69,9 +69,7 @@ def test_custom_object_types_limits_search_scope(mock_netbox):
         "results": [],
     }
 
-    result = netbox_search_objects.fn(
-        query="test", object_types=["dcim.device", "dcim.site"]
-    )
+    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
 
     # Should only search specified types
     assert mock_netbox.get.call_count == 2
@@ -160,9 +158,7 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
-    result = netbox_search_objects.fn(
-        query="test", object_types=["dcim.device", "dcim.site"]
-    )
+    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
 
     # Should continue despite error
     assert result["dcim.site"] == [{"id": 1, "name": "site01"}]
@@ -207,9 +203,7 @@ def test_uses_correct_api_endpoints(mock_netbox):
         "results": [],
     }
 
-    netbox_search_objects.fn(
-        query="test", object_types=["dcim.device", "ipam.ipaddress"]
-    )
+    netbox_search_objects.fn(query="test", object_types=["dcim.device", "ipam.ipaddress"])
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
     assert NETBOX_OBJECT_TYPES["dcim.device"]["endpoint"] in called_endpoints

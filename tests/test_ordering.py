@@ -107,9 +107,7 @@ def test_ordering_multiple_fields_as_list(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(
-        object_type="dcim.site", filters={}, ordering=["facility", "-name"]
-    )
+    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering=["facility", "-name"])
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]

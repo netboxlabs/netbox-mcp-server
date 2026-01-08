@@ -63,7 +63,10 @@ def test_brief_true_includes_parameter_get_objects(mock_netbox):
 
 @patch("netbox_mcp_server.server.netbox")
 def test_brief_false_omits_parameter_get_by_id(mock_netbox):
-    """When brief=False (default), should not include brief in API params for netbox_get_object_by_id."""
+    """
+    When brief=False (default), should not include brief in API params for
+    netbox_get_object_by_id.
+    """
     mock_netbox.get.return_value = {"id": 1, "name": "Test Site"}
 
     netbox_get_object_by_id.fn(object_type="dcim.site", object_id=1, brief=False)
