@@ -114,7 +114,7 @@ mcp = FastMCP("NetBox")
 netbox = None
 
 
-def validate_filters(filters: dict) -> None:
+def validate_filters(filters: dict[str, Any]) -> None:
     """
     Validate that filters don't use multi-hop relationship traversal.
 
@@ -244,21 +244,21 @@ def validate_filters(filters: dict) -> None:
 
     Valid object_type values:
 
-    """ +
-    "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())) +
     """
+    + "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    + """
 
     See NetBox API documentation for filtering options for each object type.
     """
 )
 def netbox_get_objects(
     object_type: str,
-    filters: dict,
-    fields: list[str] | None = None,
+    filters: dict[str, Any],
+    fields: list[str] = [],
     brief: bool = False,
-    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
-    offset: Annotated[int, Field(default=0, ge=0)] = 0,
-    ordering: str | list[str] | None = None,
+    limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
+    offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
+    ordering: str = "",
 ):
     """
     Get objects from NetBox based on their type and filters
@@ -275,9 +275,10 @@ def netbox_get_objects(
     endpoint = _endpoint_for_type(object_type)
 
     # Build params with pagination (parameters override filters dict)
+    # Convert float to int for NetBox API compatibility
     params = filters.copy()
-    params["limit"] = limit
-    params["offset"] = offset
+    params["limit"] = int(limit)
+    params["offset"] = int(offset)
 
     if fields:
         params["fields"] = ",".join(fields)
@@ -285,11 +286,8 @@ def netbox_get_objects(
     if brief:
         params["brief"] = "1"
 
-    if ordering:
-        if isinstance(ordering, list):
-            ordering = ",".join(ordering)
-        if ordering.strip() != "":
-            params["ordering"] = ordering
+    if ordering and ordering.strip():
+        params["ordering"] = ordering
 
     # Make API call
     return netbox.get(endpoint, params=params)
@@ -298,8 +296,8 @@ def netbox_get_objects(
 @mcp.tool
 def netbox_get_object_by_id(
     object_type: str,
-    object_id: int,
-    fields: list[str] | None = None,
+    object_id: float,
+    fields: list[str] = [],
     brief: bool = False,
 ):
     """
@@ -334,7 +332,8 @@ def netbox_get_object_by_id(
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
     # Get API endpoint from mapping
-    endpoint = f"{_endpoint_for_type(object_type)}/{object_id}"
+    # Convert float to int for NetBox API compatibility
+    endpoint = f"{_endpoint_for_type(object_type)}/{int(object_id)}"
 
     params = {}
     if fields:
@@ -347,7 +346,7 @@ def netbox_get_object_by_id(
 
 
 @mcp.tool
-def netbox_get_changelogs(filters: dict):
+def netbox_get_changelogs(filters: dict[str, Any]):
     """
     Get object change records (changelogs) from NetBox based on filters.
 
@@ -419,7 +418,9 @@ def netbox_get_changelogs(filters: dict):
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
         object_types: Limit search to specific types (optional)
-                     Default: [""" + "', '".join(DEFAULT_SEARCH_TYPES) + """]
+                     Default: ["""
+    + "', '".join(DEFAULT_SEARCH_TYPES)
+    + """]
                      Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
         fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
                 - None or [] = returns all fields (no filtering)
@@ -458,14 +459,14 @@ def netbox_get_changelogs(filters: dict):
 )
 def netbox_search_objects(
     query: str,
-    object_types: list[str] | None = None,
-    fields: list[str] | None = None,
-    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
-) -> dict[str, list[dict]]:
+    object_types: list[str] = [],
+    fields: list[str] = [],
+    limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
+) -> dict[str, list[dict[str, Any]]]:
     """
     Perform global search across NetBox infrastructure.
     """
-    if object_types is None:
+    if not object_types:
         search_types = DEFAULT_SEARCH_TYPES
     else:
         search_types = object_types
@@ -485,11 +486,12 @@ def netbox_search_objects(
     # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
+            # Convert float to int for NetBox API compatibility
             response = netbox.get(
                 _endpoint_for_type(obj_type),
                 params={
                     "q": query,
-                    "limit": limit,
+                    "limit": int(limit),
                     "fields": ",".join(fields) if fields else None,
                 },
             )
@@ -502,12 +504,13 @@ def netbox_search_objects(
 
     return results
 
+
 def _endpoint_for_type(object_type: str) -> str:
     """
     Returns partial API endpoint prefix for the given object type.
     e.g., "dcim.device" -> "dcim/devices"
     """
-    return NETBOX_OBJECT_TYPES[object_type]['endpoint']
+    return NETBOX_OBJECT_TYPES[object_type]["endpoint"]
 
 
 def main() -> None:
