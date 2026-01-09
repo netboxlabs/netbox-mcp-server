@@ -64,7 +64,6 @@ select = [
     "SIM", # flake8-simplify
     "LOG", # flake8-logging
     "RUF", # Ruff-specific rules
-    "B",   # Bug patterns (duplicate)
     "PT",  # Pytest style
 ]
 
