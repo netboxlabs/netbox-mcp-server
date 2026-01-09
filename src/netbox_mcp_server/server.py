@@ -132,7 +132,7 @@ def validate_filters(filters: dict) -> None:
     Raises:
         ValueError: If filter uses invalid multi-hop relationship traversal
     """
-    VALID_SUFFIXES = {
+    valid_suffixes = {
         "n",
         "ic",
         "nic",
@@ -163,7 +163,7 @@ def validate_filters(filters: dict) -> None:
         parts = filter_name.split("__")
 
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
-        if len(parts) == 2 and parts[-1] in VALID_SUFFIXES:
+        if len(parts) == 2 and parts[-1] in valid_suffixes:
             continue
         # Block multi-hop patterns and invalid suffixes
         if len(parts) >= 2:
@@ -244,9 +244,9 @@ def validate_filters(filters: dict) -> None:
 
     Valid object_type values:
 
-    """ +
-    "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())) +
     """
+    + "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    + """
 
     See NetBox API documentation for filtering options for each object type.
     """
@@ -419,7 +419,9 @@ def netbox_get_changelogs(filters: dict):
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
         object_types: Limit search to specific types (optional)
-                     Default: [""" + "', '".join(DEFAULT_SEARCH_TYPES) + """]
+                     Default: ["""
+    + "', '".join(DEFAULT_SEARCH_TYPES)
+    + """]
                      Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
         fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
                 - None or [] = returns all fields (no filtering)
@@ -465,20 +467,13 @@ def netbox_search_objects(
     """
     Perform global search across NetBox infrastructure.
     """
-    if object_types is None:
-        search_types = DEFAULT_SEARCH_TYPES
-    else:
-        search_types = object_types
+    search_types = object_types if object_types is not None else DEFAULT_SEARCH_TYPES
 
     # Validate all object types exist in mapping
     for obj_type in search_types:
         if obj_type not in NETBOX_OBJECT_TYPES:
-            valid_types = "\n".join(
-                f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())
-            )
-            raise ValueError(
-                f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}"
-            )
+            valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+            raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
 
     results = {obj_type: [] for obj_type in search_types}
 
@@ -495,19 +490,20 @@ def netbox_search_objects(
             )
             # Extract results array from paginated response
             results[obj_type] = response.get("results", [])
-        except Exception:
+        except Exception:  # noqa: S112 - intentional error-resilient search
             # Continue searching other types if one fails
             # results[obj_type] already has empty list
             continue
 
     return results
 
+
 def _endpoint_for_type(object_type: str) -> str:
     """
     Returns partial API endpoint prefix for the given object type.
     e.g., "dcim.device" -> "dcim/devices"
     """
-    return NETBOX_OBJECT_TYPES[object_type]['endpoint']
+    return NETBOX_OBJECT_TYPES[object_type]["endpoint"]
 
 
 def main() -> None:
@@ -519,7 +515,7 @@ def main() -> None:
     try:
         settings = Settings(**cli_overlay)
     except Exception as e:
-        print(f"Configuration error: {e}", file=sys.stderr)
+        print(f"Configuration error: {e}", file=sys.stderr)  # noqa: T201 - before logging configured
         sys.exit(1)
 
     configure_logging(settings.log_level)
@@ -534,10 +530,11 @@ def main() -> None:
             "This is insecure and should only be used for testing."
         )
 
-    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:
+    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:  # noqa: S104 - checking, not binding
         logger.warning(
-            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces (IPv4/IPv6). "
-            "This is insecure and should only be used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
+            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the "
+            "service to all network interfaces (IPv4/IPv6). This is insecure and should only be "
+            "used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
         )
     elif settings.transport == "http" and settings.host not in [
         "127.0.0.1",

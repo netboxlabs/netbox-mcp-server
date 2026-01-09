@@ -2,7 +2,7 @@
 
 __version__ = "1.0.0"  # Auto-managed by semantic-release
 
-__all__ = ["NetBoxRestClient", "NETBOX_OBJECT_TYPES", "Settings"]
+__all__ = ["NETBOX_OBJECT_TYPES", "NetBoxRestClient", "Settings"]
 
 from netbox_mcp_server.config import Settings
 from netbox_mcp_server.netbox_client import NetBoxRestClient

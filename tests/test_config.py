@@ -14,17 +14,21 @@ from netbox_mcp_server.server import parse_cli_args
 def test_settings_requires_netbox_url():
     """Test that Settings requires NETBOX_URL."""
     # Isolate from .env file by patching model_config
-    with patch.dict("os.environ", {}, clear=True):
-        with pytest.raises(ValidationError, match="netbox_url"):
-            Settings(netbox_token="test-token", _env_file=None)
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        pytest.raises(ValidationError, match="netbox_url"),
+    ):
+        Settings(netbox_token="test-token", _env_file=None)
 
 
 def test_settings_requires_netbox_token():
     """Test that Settings requires NETBOX_TOKEN."""
     # Isolate from .env file by patching model_config
-    with patch.dict("os.environ", {}, clear=True):
-        with pytest.raises(ValidationError, match="netbox_token"):
-            Settings(netbox_url="https://netbox.example.com/", _env_file=None)
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        pytest.raises(ValidationError, match="netbox_token"),
+    ):
+        Settings(netbox_url="https://netbox.example.com/", _env_file=None)
 
 
 def test_settings_validates_url_format():
@@ -48,9 +52,7 @@ def test_settings_validates_port_range():
 def test_settings_masks_secrets_in_summary():
     """Test that get_effective_config_summary masks secrets."""
 
-    settings = Settings(
-        netbox_url="https://netbox.example.com/", netbox_token="super-secret-token"
-    )
+    settings = Settings(netbox_url="https://netbox.example.com/", netbox_token="super-secret-token")
 
     summary = settings.get_effective_config_summary()
 
