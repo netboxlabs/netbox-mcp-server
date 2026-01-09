@@ -22,9 +22,11 @@ netbox-mcp-server = "netbox_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.1",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "python-semantic-release>=10.4.1",
+    "ruff>=0.14.11",
 ]
 
 [tool.semantic_release]
@@ -41,3 +43,43 @@ patch_tags = ["fix", "perf"]
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "N",  # pep8-naming
+    "S",  # flake8-bandit
+    "T20", # flake8-print
+    "SIM", # flake8-simplify
+    "LOG", # flake8-logging
+    "RUF", # Ruff-specific rules
+    "PT",  # Pytest style
+]
+
+ignore = [
+    "E501",  # Line too long, handled by formatter
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S107"]  # Allow assert and hardcoded passwords in tests
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+skip-magic-trailing-comma = false
+line-ending = "auto"

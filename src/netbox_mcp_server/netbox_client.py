@@ -6,7 +6,7 @@ This module provides a base class for NetBox client implementations and a REST A
 """
 
 import abc
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -23,8 +23,8 @@ class NetBoxClientBase(abc.ABC):
     def get(
         self,
         endpoint: str,
-        id: Optional[int] = None,
-        params: Optional[dict[str, Any]] = None,
+        id: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox.
@@ -88,9 +88,7 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def bulk_create(
-        self, endpoint: str, data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def bulk_create(self, endpoint: str, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Create multiple objects in NetBox.
 
@@ -104,9 +102,7 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def bulk_update(
-        self, endpoint: str, data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def bulk_update(self, endpoint: str, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Update multiple objects in NetBox.
 
@@ -184,7 +180,7 @@ class NetBoxRestClient(NetBoxClientBase):
             }
         )
 
-    def _build_url(self, endpoint: str, id: Optional[int] = None) -> str:
+    def _build_url(self, endpoint: str, id: int | None = None) -> str:
         """Build the full URL for an API request."""
         endpoint = endpoint.strip("/")
         if id is not None:
@@ -194,8 +190,8 @@ class NetBoxRestClient(NetBoxClientBase):
     def get(
         self,
         endpoint: str,
-        id: Optional[int] = None,
-        params: Optional[dict[str, Any]] = None,
+        id: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox via the REST API.
@@ -280,9 +276,7 @@ class NetBoxRestClient(NetBoxClientBase):
         response.raise_for_status()
         return response.status_code == 204
 
-    def bulk_create(
-        self, endpoint: str, data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def bulk_create(self, endpoint: str, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Create multiple objects in NetBox via the REST API.
 
@@ -301,9 +295,7 @@ class NetBoxRestClient(NetBoxClientBase):
         response.raise_for_status()
         return response.json()
 
-    def bulk_update(
-        self, endpoint: str, data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def bulk_update(self, endpoint: str, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Update multiple objects in NetBox via the REST API.
 

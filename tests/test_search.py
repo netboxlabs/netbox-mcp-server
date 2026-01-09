@@ -206,8 +206,8 @@ def test_uses_correct_api_endpoints(mock_netbox):
     netbox_search_objects.fn(query="test", object_types=["dcim.device", "ipam.ipaddress"])
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
-    assert NETBOX_OBJECT_TYPES["dcim.device"]['endpoint'] in called_endpoints
-    assert NETBOX_OBJECT_TYPES["ipam.ipaddress"]['endpoint'] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["dcim.device"]["endpoint"] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["ipam.ipaddress"]["endpoint"] in called_endpoints
 
 
 # ============================================================================
