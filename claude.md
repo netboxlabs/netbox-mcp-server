@@ -8,7 +8,7 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 
 ## Tech Stack
 
-- **Python**: 3.13.x (3.14+ not supported)
+- **Python**: 3.13.x (3.15+ not supported)
 - **Package Manager**: uv
 - **MCP Framework**: FastMCP 2.12.x
 - **HTTP Client**: requests + httpx
