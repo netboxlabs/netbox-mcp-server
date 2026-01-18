@@ -25,6 +25,7 @@ class NetBoxClientBase(abc.ABC):
         endpoint: str,
         id: int | None = None,
         params: dict[str, Any] | None = None,
+        fallback_endpoint: str | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox.
@@ -33,6 +34,8 @@ class NetBoxClientBase(abc.ABC):
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: Optional ID to retrieve a specific object
             params: Optional query parameters for filtering
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             For single object queries (with id): Returns the object dict
@@ -192,6 +195,7 @@ class NetBoxRestClient(NetBoxClientBase):
         endpoint: str,
         id: int | None = None,
         params: dict[str, Any] | None = None,
+        fallback_endpoint: str | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Retrieve one or more objects from NetBox via the REST API.
@@ -200,6 +204,8 @@ class NetBoxRestClient(NetBoxClientBase):
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: Optional ID to retrieve a specific object
             params: Optional query parameters for filtering
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             For single object queries (with id): Returns the object dict
@@ -214,6 +220,12 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         url = self._build_url(endpoint, id)
         response = self.session.get(url, params=params, verify=self.verify_ssl)
+
+        # Try fallback endpoint if primary returns 404
+        if response.status_code == 404 and fallback_endpoint:
+            fallback_url = self._build_url(fallback_endpoint, id)
+            response = self.session.get(fallback_url, params=params, verify=self.verify_ssl)
+
         response.raise_for_status()
 
         return response.json()
