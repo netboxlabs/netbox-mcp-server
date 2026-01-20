@@ -61,7 +61,8 @@ NETBOX_OBJECT_TYPES = {
     },
     "core.objecttype": {
         "name": "ObjectType",
-        "endpoint": "extras/object-types",
+        "endpoint": "core/object-types",
+        "fallback_endpoint": "extras/object-types",  # For NetBox < 4.4
     },
     "dcim.cable": {
         "name": "Cable",
@@ -247,6 +248,10 @@ NETBOX_OBJECT_TYPES = {
         "name": "ConfigContext",
         "endpoint": "extras/config-contexts",
     },
+    "extras.configcontextprofile": {
+        "name": "ConfigContextProfile",
+        "endpoint": "extras/config-context-profiles",
+    },
     "extras.configtemplate": {
         "name": "ConfigTemplate",
         "endpoint": "extras/config-templates",
@@ -426,6 +431,14 @@ NETBOX_OBJECT_TYPES = {
     "users.user": {
         "name": "User",
         "endpoint": "users/users",
+    },
+    "users.owner": {
+        "name": "Owner",
+        "endpoint": "users/owners",
+    },
+    "users.ownergroup": {
+        "name": "OwnerGroup",
+        "endpoint": "users/owner-groups",
     },
     "virtualization.cluster": {
         "name": "Cluster",
