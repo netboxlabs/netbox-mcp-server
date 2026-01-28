@@ -110,7 +110,7 @@ def test_field_projection_applied_to_queries(mock_netbox):
 def test_result_structure_with_empty_and_populated_results(mock_netbox):
     """Should return dict with all types as keys, empty lists for no matches."""
 
-    def mock_get_side_effect(endpoint, params):
+    def mock_get_side_effect(endpoint, params, fallback_endpoint=None):
         if "devices" in endpoint:
             return {
                 "count": 1,
@@ -144,7 +144,7 @@ def test_result_structure_with_empty_and_populated_results(mock_netbox):
 def test_continues_searching_when_one_type_fails(mock_netbox):
     """If one object type fails, should continue searching others."""
 
-    def mock_get_side_effect(endpoint, params):
+    def mock_get_side_effect(endpoint, params, fallback_endpoint=None):
         if "devices" in endpoint:
             raise Exception("API error")
         elif "sites" in endpoint:
@@ -206,8 +206,8 @@ def test_uses_correct_api_endpoints(mock_netbox):
     netbox_search_objects.fn(query="test", object_types=["dcim.device", "ipam.ipaddress"])
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
-    assert NETBOX_OBJECT_TYPES["dcim.device"]['endpoint'] in called_endpoints
-    assert NETBOX_OBJECT_TYPES["ipam.ipaddress"]['endpoint'] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["dcim.device"]["endpoint"] in called_endpoints
+    assert NETBOX_OBJECT_TYPES["ipam.ipaddress"]["endpoint"] in called_endpoints
 
 
 # ============================================================================

@@ -132,7 +132,7 @@ def validate_filters(filters: dict[str, Any]) -> None:
     Raises:
         ValueError: If filter uses invalid multi-hop relationship traversal
     """
-    VALID_SUFFIXES = {
+    valid_suffixes = {
         "n",
         "ic",
         "nic",
@@ -163,7 +163,7 @@ def validate_filters(filters: dict[str, Any]) -> None:
         parts = filter_name.split("__")
 
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
-        if len(parts) == 2 and parts[-1] in VALID_SUFFIXES:
+        if len(parts) == 2 and parts[-1] in valid_suffixes:
             continue
         # Block multi-hop patterns and invalid suffixes
         if len(parts) >= 2:
@@ -254,7 +254,7 @@ def validate_filters(filters: dict[str, Any]) -> None:
 def netbox_get_objects(
     object_type: str,
     filters: dict[str, Any],
-    fields: list[str] = [],
+    fields: list[str] | None = None,
     brief: bool = False,
     limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
     offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
@@ -271,8 +271,8 @@ def netbox_get_objects(
     # Validate filter patterns
     validate_filters(filters)
 
-    # Get API endpoint from mapping
-    endpoint = _endpoint_for_type(object_type)
+    # Get API endpoint and fallback from mapping
+    endpoint, fallback = _get_endpoint_info(object_type)
 
     # Build params with pagination (parameters override filters dict)
     # Convert float to int for NetBox API compatibility
@@ -290,14 +290,14 @@ def netbox_get_objects(
         params["ordering"] = ordering
 
     # Make API call
-    return netbox.get(endpoint, params=params)
+    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
 
 
 @mcp.tool
 def netbox_get_object_by_id(
     object_type: str,
     object_id: float,
-    fields: list[str] = [],
+    fields: list[str] | None = None,
     brief: bool = False,
 ):
     """
@@ -331,9 +331,11 @@ def netbox_get_object_by_id(
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
-    # Get API endpoint from mapping
+    # Get API endpoint and fallback from mapping
     # Convert float to int for NetBox API compatibility
-    endpoint = f"{_endpoint_for_type(object_type)}/{int(object_id)}"
+    endpoint, fallback = _get_endpoint_info(object_type)
+    full_endpoint = f"{endpoint}/{int(object_id)}"
+    full_fallback = f"{fallback}/{int(object_id)}" if fallback else None
 
     params = {}
     if fields:
@@ -342,7 +344,7 @@ def netbox_get_object_by_id(
     if brief:
         params["brief"] = "1"
 
-    return netbox.get(endpoint, params=params)
+    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
 @mcp.tool
@@ -459,45 +461,39 @@ def netbox_get_changelogs(filters: dict[str, Any]):
 )
 def netbox_search_objects(
     query: str,
-    object_types: list[str] = [],
-    fields: list[str] = [],
+    object_types: list[str] | None = None,
+    fields: list[str] | None = None,
     limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
 ) -> dict[str, list[dict[str, Any]]]:
     """
     Perform global search across NetBox infrastructure.
     """
-    if not object_types:
-        search_types = DEFAULT_SEARCH_TYPES
-    else:
-        search_types = object_types
+    search_types = object_types if object_types else DEFAULT_SEARCH_TYPES
 
     # Validate all object types exist in mapping
     for obj_type in search_types:
         if obj_type not in NETBOX_OBJECT_TYPES:
-            valid_types = "\n".join(
-                f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys())
-            )
-            raise ValueError(
-                f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}"
-            )
+            valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+            raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
 
     results = {obj_type: [] for obj_type in search_types}
 
     # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
-            # Convert float to int for NetBox API compatibility
+            endpoint, fallback = _get_endpoint_info(obj_type)
             response = netbox.get(
-                _endpoint_for_type(obj_type),
+                endpoint,
                 params={
                     "q": query,
                     "limit": int(limit),
                     "fields": ",".join(fields) if fields else None,
                 },
+                fallback_endpoint=fallback,
             )
             # Extract results array from paginated response
             results[obj_type] = response.get("results", [])
-        except Exception:
+        except Exception:  # noqa: S112 - intentional error-resilient search
             # Continue searching other types if one fails
             # results[obj_type] already has empty list
             continue
@@ -505,12 +501,22 @@ def netbox_search_objects(
     return results
 
 
-def _endpoint_for_type(object_type: str) -> str:
+def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
     """
-    Returns partial API endpoint prefix for the given object type.
-    e.g., "dcim.device" -> "dcim/devices"
+    Returns (endpoint, fallback_endpoint) for the given object type.
+
+    The fallback_endpoint is used for NetBox version compatibility when
+    an endpoint path has changed between versions.
+
+    Args:
+        object_type: The NetBox object type (e.g., "dcim.device")
+
+    Returns:
+        Tuple of (endpoint, fallback_endpoint). fallback_endpoint is None
+        if no fallback is needed for this object type.
     """
-    return NETBOX_OBJECT_TYPES[object_type]["endpoint"]
+    type_info = NETBOX_OBJECT_TYPES[object_type]
+    return type_info["endpoint"], type_info.get("fallback_endpoint")
 
 
 def main() -> None:
@@ -522,7 +528,7 @@ def main() -> None:
     try:
         settings = Settings(**cli_overlay)
     except Exception as e:
-        print(f"Configuration error: {e}", file=sys.stderr)
+        print(f"Configuration error: {e}", file=sys.stderr)  # noqa: T201 - before logging configured
         sys.exit(1)
 
     configure_logging(settings.log_level)
@@ -537,10 +543,11 @@ def main() -> None:
             "This is insecure and should only be used for testing."
         )
 
-    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:
+    if settings.transport == "http" and settings.host in ["0.0.0.0", "::", "[::]"]:  # noqa: S104 - checking, not binding
         logger.warning(
-            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the service to all network interfaces (IPv4/IPv6). "
-            "This is insecure and should only be used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
+            f"HTTP transport is bound to {settings.host}:{settings.port}, which exposes the "
+            "service to all network interfaces (IPv4/IPv6). This is insecure and should only be "
+            "used for testing. Ensure this is secured with TLS/reverse proxy if exposed to network."
         )
     elif settings.transport == "http" and settings.host not in [
         "127.0.0.1",

@@ -23,10 +23,16 @@ def test_ordering_rejects_invalid_types():
     with pytest.raises(ValidationError):
         adapter.validate_python(["name", "-id"])
 
+
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_default_omits_parameter(mock_netbox):
     """When ordering is not specified (default empty string), should not include ordering in API params."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={})
 
@@ -40,7 +46,12 @@ def test_ordering_default_omits_parameter(mock_netbox):
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_empty_string_omits_parameter(mock_netbox):
     """When ordering='', should not include ordering in API params."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="")
 
@@ -54,7 +65,12 @@ def test_ordering_empty_string_omits_parameter(mock_netbox):
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_single_field_ascending(mock_netbox):
     """When ordering='name', should pass 'name' to API params."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="name")
 
@@ -67,7 +83,12 @@ def test_ordering_single_field_ascending(mock_netbox):
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_single_field_descending(mock_netbox):
     """When ordering='-id', should pass '-id' to API params."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="-id")
 
@@ -80,7 +101,12 @@ def test_ordering_single_field_descending(mock_netbox):
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_multiple_fields_comma_separated(mock_netbox):
     """When ordering='facility,-name', should pass comma-separated string to API."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="facility,-name")
 
@@ -94,7 +120,12 @@ def test_ordering_multiple_fields_comma_separated(mock_netbox):
 @patch("netbox_mcp_server.server.netbox")
 def test_ordering_whitespace_only_omits_parameter(mock_netbox):
     """When ordering contains only whitespace, should not include ordering in API params."""
-    mock_netbox.get.return_value = {"count": 0, "results": [], "next": None, "previous": None}
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
 
     netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="   ")
 
