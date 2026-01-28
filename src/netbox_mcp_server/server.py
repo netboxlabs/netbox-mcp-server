@@ -120,7 +120,7 @@ def _parse_filters(filters: str | dict[str, Any]) -> dict[str, Any]:
     Parse filters parameter - accepts both JSON string and dict for backward compatibility.
 
     Args:
-        filters: Either a JSON string (for n8n) or a dict (for Claude/other clients)
+        filters: Either a JSON string or a dict
 
     Returns:
         Parsed filters dict
@@ -129,8 +129,11 @@ def _parse_filters(filters: str | dict[str, Any]) -> dict[str, Any]:
         return filters
     if not filters:
         return {}
+    filters_str = str(filters).strip()
+    if not filters_str or filters_str.lower() in ("undefined", "null", "none"):
+        return {}
     try:
-        return json.loads(filters)
+        return json.loads(filters_str)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid filters JSON: {e}") from e
 
