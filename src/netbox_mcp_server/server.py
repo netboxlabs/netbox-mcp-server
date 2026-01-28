@@ -114,43 +114,37 @@ DEFAULT_SEARCH_TYPES = [
 mcp = FastMCP("NetBox")
 netbox = None
 
+# Some MCP clients (e.g., n8n) send literal strings for empty optional parameters
+_EMPTY_STRING_VALUES = {"undefined", "null", "none"}
 
-def _parse_filters(filters: str | dict[str, Any]) -> dict[str, Any]:
-    """
-    Parse filters parameter - accepts both JSON string and dict for backward compatibility.
 
-    Args:
-        filters: Either a JSON string or a dict
+def _is_empty_string(value: str) -> bool:
+    """Check if a string represents an empty value (including n8n-style nulls)."""
+    stripped = value.strip()
+    return not stripped or stripped.lower() in _EMPTY_STRING_VALUES
 
-    Returns:
-        Parsed filters dict
-    """
+
+def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
+    """Parse filters parameter from JSON string or dict."""
+    if filters is None:
+        return {}
     if isinstance(filters, dict):
         return filters
-    if not filters:
-        return {}
-    filters_str = str(filters).strip()
-    if not filters_str or filters_str.lower() in ("undefined", "null", "none"):
+    if _is_empty_string(filters):
         return {}
     try:
-        return json.loads(filters_str)
+        return json.loads(filters.strip())
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid filters JSON: {e}") from e
 
 
-def _parse_list_param(value: str | list[str]) -> list[str]:
-    """
-    Parse list parameter - accepts both comma-separated string and list for backward compatibility.
-
-    Args:
-        value: Either a comma-separated string (for n8n) or a list (for Claude/other clients)
-
-    Returns:
-        Parsed list of strings
-    """
+def _parse_list_param(value: str | list[str] | None) -> list[str]:
+    """Parse list parameter from comma-separated string or list."""
+    if value is None:
+        return []
     if isinstance(value, list):
         return value
-    if not value:
+    if _is_empty_string(value):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
