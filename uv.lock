@@ -1035,7 +1035,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "requests" },
-    { name = "ruff" },
 ]
 
 [package.dev-dependencies]
@@ -1054,7 +1053,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.0" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "ruff", specifier = ">=0.14.10" },
 ]
 
 [package.metadata.requires-dev]

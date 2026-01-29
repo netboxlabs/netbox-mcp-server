@@ -33,7 +33,7 @@ def test_limit_validation_rejects_invalid_values():
 def test_invalid_object_type_raises_error():
     """Invalid object type should raise ValueError with helpful message."""
     with pytest.raises(ValueError, match="Invalid object_type"):
-        netbox_search_objects.fn(query="test", object_types=["invalid_type_xyz"])
+        netbox_search_objects.fn(query="test", object_types="invalid_type_xyz")
 
 
 # ============================================================================
@@ -69,7 +69,7 @@ def test_custom_object_types_limits_search_scope(mock_netbox):
         "results": [],
     }
 
-    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
+    result = netbox_search_objects.fn(query="test", object_types="dcim.device,dcim.site")
 
     # Should only search specified types
     assert mock_netbox.get.call_count == 2
@@ -91,9 +91,7 @@ def test_field_projection_applied_to_queries(mock_netbox):
         "results": [],
     }
 
-    netbox_search_objects.fn(
-        query="test", object_types=["dcim.device", "dcim.site"], fields=["id", "name"]
-    )
+    netbox_search_objects.fn(query="test", object_types="dcim.device,dcim.site", fields="id,name")
 
     # All calls should include fields parameter
     for call_args in mock_netbox.get.call_args_list:
@@ -122,9 +120,7 @@ def test_result_structure_with_empty_and_populated_results(mock_netbox):
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
-    result = netbox_search_objects.fn(
-        query="test", object_types=["dcim.device", "dcim.site", "dcim.rack"]
-    )
+    result = netbox_search_objects.fn(query="test", object_types="dcim.device,dcim.site,dcim.rack")
 
     # All types present
     assert set(result.keys()) == {"dcim.device", "dcim.site", "dcim.rack"}
@@ -158,7 +154,7 @@ def test_continues_searching_when_one_type_fails(mock_netbox):
 
     mock_netbox.get.side_effect = mock_get_side_effect
 
-    result = netbox_search_objects.fn(query="test", object_types=["dcim.device", "dcim.site"])
+    result = netbox_search_objects.fn(query="test", object_types="dcim.device,dcim.site")
 
     # Should continue despite error
     assert result["dcim.site"] == [{"id": 1, "name": "site01"}]
@@ -181,9 +177,7 @@ def test_api_parameters_passed_correctly(mock_netbox):
         "results": [],
     }
 
-    netbox_search_objects.fn(
-        query="switch01", object_types=["dcim.device"], fields=["id"], limit=25
-    )
+    netbox_search_objects.fn(query="switch01", object_types="dcim.device", fields="id", limit=25)
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -203,7 +197,7 @@ def test_uses_correct_api_endpoints(mock_netbox):
         "results": [],
     }
 
-    netbox_search_objects.fn(query="test", object_types=["dcim.device", "ipam.ipaddress"])
+    netbox_search_objects.fn(query="test", object_types="dcim.device,ipam.ipaddress")
 
     called_endpoints = [call[0][0] for call in mock_netbox.get.call_args_list]
     assert NETBOX_OBJECT_TYPES["dcim.device"]["endpoint"] in called_endpoints
@@ -240,7 +234,7 @@ def test_extracts_results_from_paginated_response(mock_netbox):
         ],
     }
 
-    result = netbox_search_objects.fn(query="test", object_types=["dcim.device"])
+    result = netbox_search_objects.fn(query="test", object_types="dcim.device")
 
     # Should return dict with object type as key
     assert "dcim.device" in result
