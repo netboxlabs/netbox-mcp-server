@@ -1,8 +1,10 @@
 import argparse
+import asyncio
 import logging
 import sys
 from typing import Annotated, Any
 
+import httpx
 from fastmcp import FastMCP
 from pydantic import Field
 
@@ -69,6 +71,15 @@ def parse_cli_args() -> dict[str, Any]:
         help="Disable SSL certificate verification (not recommended)",
     )
 
+    # Plugin discovery settings
+    parser.add_argument(
+        "--enable-plugin-discovery",
+        action="store_true",
+        default=None,
+        dest="enable_plugin_discovery",
+        help="Auto-discover plugin object types from NetBox at startup",
+    )
+
     # Observability settings
     parser.add_argument(
         "--log-level",
@@ -92,6 +103,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["port"] = args.port
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
+    if args.enable_plugin_discovery is not None:
+        overlay["enable_plugin_discovery"] = args.enable_plugin_discovery
     if args.log_level is not None:
         overlay["log_level"] = args.log_level
 
@@ -520,6 +533,116 @@ def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
     return type_info["endpoint"], type_info.get("fallback_endpoint")
 
 
+def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]:
+    """Discover plugin object types from NetBox's object-types API.
+
+    Queries the NetBox instance for installed plugin models that have REST API
+    endpoints and returns them in the same format as NETBOX_OBJECT_TYPES.
+
+    Args:
+        client: Initialized NetBox REST API client
+
+    Returns:
+        Dict mapping type keys (e.g. "netbox_dns.zone") to endpoint info dicts.
+        Returns empty dict on any error (graceful degradation).
+    """
+    logger = logging.getLogger(__name__)
+    plugin_types: dict[str, dict[str, str]] = {}
+
+    try:
+        # Paginate through all object types
+        offset = 0
+        limit = 100
+        while True:
+            response = client.get(
+                "core/object-types",
+                params={"limit": limit, "offset": offset},
+                fallback_endpoint="extras/object-types",  # NetBox < 4.4
+            )
+
+            results = response.get("results", [])
+            for obj_type in results:
+                # Only include plugin models with REST API endpoints
+                if not obj_type.get("is_plugin_model", False):
+                    continue
+
+                rest_url = obj_type.get("rest_api_endpoint")
+                if not rest_url:
+                    continue
+
+                app_label = obj_type.get("app_label", "")
+                model = obj_type.get("model", "")
+                if not app_label or not model:
+                    continue
+
+                type_key = f"{app_label}.{model}"
+
+                # Skip if it would collide with a core type
+                if type_key in NETBOX_OBJECT_TYPES:
+                    logger.debug(f"Skipping plugin type '{type_key}': collides with core type")
+                    continue
+
+                # Convert REST URL to endpoint path:
+                # "/api/plugins/netbox-dns/zones/" -> "plugins/netbox-dns/zones"
+                endpoint = rest_url.strip("/")
+                if endpoint.startswith("api/"):
+                    endpoint = endpoint[4:]
+
+                # Build a display name from the model name
+                display_name = obj_type.get("display", model)
+
+                plugin_types[type_key] = {
+                    "name": display_name,
+                    "endpoint": endpoint,
+                }
+
+            # Check if there are more pages
+            if not response.get("next"):
+                break
+            offset += limit
+
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
+        return {}
+
+    if plugin_types:
+        logger.info(
+            f"Discovered {len(plugin_types)} plugin object types: "
+            + ", ".join(sorted(plugin_types.keys()))
+        )
+    else:
+        logger.info("No plugin object types discovered")
+
+    return plugin_types
+
+
+async def _update_tool_descriptions() -> None:
+    """Update tool descriptions to reflect the current NETBOX_OBJECT_TYPES registry.
+
+    The type list in netbox_get_objects's description is built at import time.
+    After plugin discovery adds new types, this refreshes the description so
+    LLMs see the full list of available types.
+    """
+    type_list = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+    tool = await mcp.get_tool("netbox_get_objects")
+    if tool:
+        # Replace the type list portion of the description
+        desc = tool.description
+        marker = "Valid object_type values:"
+        idx = desc.find(marker)
+        if idx != -1:
+            # Keep everything up to and including the marker, then append new list
+            prefix = desc[: idx + len(marker)]
+            suffix_marker = "See NetBox API documentation"
+            suffix_idx = desc.find(suffix_marker)
+            suffix = (
+                f"\n\n    {suffix_marker}" + desc[suffix_idx + len(suffix_marker) :]
+                if suffix_idx != -1
+                else ""
+            )
+            tool.description = f"{prefix}\n\n{type_list}{suffix}"
+
+
 def main() -> None:
     """Main entry point for the MCP server."""
     global netbox
@@ -569,6 +692,12 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Failed to initialize NetBox client: {e}")
         sys.exit(1)
+
+    if settings.enable_plugin_discovery:
+        plugin_types = discover_plugin_types(netbox)
+        if plugin_types:
+            NETBOX_OBJECT_TYPES.update(plugin_types)
+            asyncio.run(_update_tool_descriptions())
 
     try:
         if settings.transport == "stdio":

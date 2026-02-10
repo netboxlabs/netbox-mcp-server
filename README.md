@@ -17,7 +17,7 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 | get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
 | get_changelogs | Retrieves change history records (audit trail) based on filters |
 
-> Note: the set of supported object types is explicitly defined and limited to the core NetBox objects for now, and won't work with object types from plugins.
+> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered — see [Plugin Object Type Discovery](#plugin-object-type-discovery).
 
 ## Usage
 
@@ -170,6 +170,7 @@ The server supports multiple configuration sources with the following precedence
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
+| `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
 
 ### Transport Examples
@@ -234,6 +235,9 @@ TRANSPORT=stdio
 
 # Security (optional, defaults to true)
 VERIFY_SSL=true
+
+# Plugin Discovery (optional, defaults to false)
+# ENABLE_PLUGIN_DISCOVERY=true
 
 # Logging (optional, defaults to INFO)
 LOG_LEVEL=INFO
@@ -307,6 +311,53 @@ docker run --rm \
 ```
 
 The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your preferred method.
+
+## Plugin Object Type Discovery
+
+By default, only core NetBox object types are available. If your NetBox instance has plugins installed (e.g., `netbox-dns`, `netbox-inventory`), you can enable automatic discovery to make their object types available as well.
+
+### Enabling Discovery
+
+Set the `ENABLE_PLUGIN_DISCOVERY` environment variable or use the `--enable-plugin-discovery` CLI flag:
+
+```bash
+# Via environment variable
+ENABLE_PLUGIN_DISCOVERY=true uv run netbox-mcp-server
+
+# Via CLI flag
+uv run netbox-mcp-server --enable-plugin-discovery
+
+# In Claude Desktop config
+{
+    "mcpServers": {
+        "netbox": {
+            "command": "uv",
+            "args": ["--directory", "/path/to/netbox-mcp-server", "run", "netbox-mcp-server"],
+            "env": {
+                "NETBOX_URL": "https://netbox.example.com/",
+                "NETBOX_TOKEN": "<your-api-token>",
+                "ENABLE_PLUGIN_DISCOVERY": "true"
+            }
+        }
+    }
+}
+```
+
+### How It Works
+
+At startup, the server queries NetBox's `core/object-types` API endpoint (with `extras/object-types` fallback for NetBox < 4.4) to find all installed plugin models that have REST API endpoints. These are merged into the runtime type registry alongside the core types.
+
+Discovered plugin types use the `app_label.model` naming convention (e.g., `netbox_dns.zone`, `netbox_inventory.asset`) and work with all existing tools (`netbox_get_objects`, `netbox_get_object_by_id`, `netbox_search_objects`).
+
+### Requirements
+
+- NetBox 4.2 or later
+- API token must have read access to the object-types endpoint
+- Plugin models must expose a REST API endpoint to be discovered
+
+### Failure Behavior
+
+If discovery fails for any reason (network error, insufficient permissions, unsupported NetBox version), the server logs a warning and continues with core types only. This ensures the server always starts successfully regardless of discovery outcome.
 
 ## Development
 

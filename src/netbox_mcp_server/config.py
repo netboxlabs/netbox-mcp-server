@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     port: int = 8000
     """Port to bind HTTP server (only used when transport='http')"""
 
+    # ===== Plugin Discovery Settings =====
+    enable_plugin_discovery: bool = False
+    """Whether to auto-discover plugin object types from NetBox at startup"""
+
     # ===== Security Settings =====
     verify_ssl: bool = True
     """Whether to verify SSL certificates when connecting to NetBox"""
@@ -90,6 +94,7 @@ class Settings(BaseSettings):
             "host": self.host if self.transport == "http" else "N/A",
             "port": self.port if self.transport == "http" else "N/A",
             "verify_ssl": self.verify_ssl,
+            "enable_plugin_discovery": self.enable_plugin_discovery,
             "log_level": self.log_level,
         }
 
