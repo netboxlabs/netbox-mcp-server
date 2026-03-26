@@ -114,25 +114,8 @@ mcp = FastMCP("NetBox")
 netbox = None
 
 
-def validate_filters(filters: dict) -> None:
-    """
-    Validate that filters don't use multi-hop relationship traversal.
-
-    NetBox API does not support nested relationship queries like:
-    - device__site_id (filtering by related object's field)
-    - interface__device__site (multiple relationship hops)
-
-    Valid patterns:
-    - Direct field filters: site_id, name, status
-    - Lookup expressions: name__ic, status__in, id__gt
-
-    Args:
-        filters: Dictionary of filter parameters
-
-    Raises:
-        ValueError: If filter uses invalid multi-hop relationship traversal
-    """
-    valid_suffixes = {
+VALID_LOOKUP_SUFFIXES = frozenset(
+    {
         "n",
         "ic",
         "nic",
@@ -151,7 +134,171 @@ def validate_filters(filters: dict) -> None:
         "gte",
         "in",
     }
+)
 
+# Component endpoints where NetBox silently ignores unsupported filter parameters.
+# If a filter is silently ignored, NetBox returns ALL objects — catastrophic for
+# any read-then-modify/delete workflow. This map lists filters that LOOK valid
+# (they pass generic syntax checks) but are NOT supported on these endpoints.
+#
+# The base field (before any lookup suffix) is listed. For example, "device__name"
+# means device__name, device__name__ic, device__name__isw, etc. are all blocked.
+#
+# To filter component objects by device name, use the two-step pattern:
+#   1. Query dcim.device with name filter to get the device ID
+#   2. Query the component endpoint with device_id=<id>
+UNSUPPORTED_COMPONENT_FILTERS: dict[str, set[str]] = {
+    "dcim.interface": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.consoleport": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.consoleserverport": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.powerport": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.poweroutlet": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.frontport": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.rearport": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.devicebay": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+    "dcim.inventoryitem": {
+        "device__name",
+        "device__name__ic",
+        "device__name__isw",
+        "device__name__nisw",
+        "device__name__iew",
+        "device__name__niew",
+        "device__name__ie",
+        "device__name__nie",
+        "device__name__regex",
+        "device__name__iregex",
+    },
+}
+
+
+def validate_filters(filters: dict, object_type: str | None = None) -> None:
+    """
+    Validate that filters are safe to send to the NetBox API.
+
+    NetBox REST API silently ignores unsupported filter parameters and returns
+    ALL objects instead of an error. This is catastrophic for any workflow that
+    reads objects then modifies or deletes them.
+
+    This function blocks two categories of dangerous filters:
+
+    1. Multi-hop relationship traversal (e.g., device__site_id) — these are
+       never supported on any endpoint.
+
+    2. Known-unsupported filters on component endpoints (e.g., device__name on
+       dcim/interfaces) — these look valid but are silently ignored, causing
+       the API to return every object of that type.
+
+    Args:
+        filters: Dictionary of filter parameters
+        object_type: Optional NetBox object type (e.g., "dcim.interface") for
+                     endpoint-specific validation
+
+    Raises:
+        ValueError: If filter is unsafe (multi-hop traversal or known-unsupported
+                    on the target endpoint)
+    """
+    # Endpoint-specific validation first (more specific error message)
+    if object_type and object_type in UNSUPPORTED_COMPONENT_FILTERS:
+        blocked = UNSUPPORTED_COMPONENT_FILTERS[object_type]
+        for filter_name in filters:
+            if filter_name in blocked:
+                raise ValueError(
+                    f"Unsupported filter '{filter_name}' on {object_type}: "
+                    f"NetBox silently ignores this filter and returns ALL objects. "
+                    f"Use the two-step pattern instead: first query dcim.device to "
+                    f"get the device ID, then filter {object_type} with "
+                    f"device_id=<id>."
+                )
+
+    # Generic syntax validation
     for filter_name in filters:
         # Skip special parameters
         if filter_name in ("limit", "offset", "fields", "q"):
@@ -163,20 +310,27 @@ def validate_filters(filters: dict) -> None:
         parts = filter_name.split("__")
 
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
-        if len(parts) == 2 and parts[-1] in valid_suffixes:
+        if len(parts) == 2 and parts[-1] in VALID_LOOKUP_SUFFIXES:
             continue
         # Block multi-hop patterns and invalid suffixes
         if len(parts) >= 2:
             raise ValueError(
                 f"Invalid filter '{filter_name}': Multi-hop relationship "
-                f"traversal or invalid lookup suffix not supported. Use direct field filters like "
-                f"'site_id' or two-step queries."
+                f"traversal or invalid lookup suffix not supported. "
+                f"Use direct field filters like 'site_id' or two-step queries. "
+                f"For component objects (interfaces, ports, bays), filter by "
+                f"'device_id' instead of 'device__name'."
             )
 
 
 @mcp.tool(
     description="""
     Get objects from NetBox based on their type and filters
+
+    SAFETY WARNING: NetBox REST API silently ignores unsupported filter parameters
+    and returns ALL objects. This means a bad filter can cause you to operate on
+    every object in the database instead of a filtered subset. Always use supported
+    filters and verify result counts before taking action.
 
     Args:
         object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
@@ -185,7 +339,14 @@ def validate_filters(filters: dict) -> None:
                 FILTER RULES:
                 Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
                 Valid: Lookups like {'name__ic': 'switch', 'id__in': [1,2,3], 'vid__gte': 100}
-                Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
+                INVALID: Multi-hop like {'device__site_id': 1} - NOT supported, SILENTLY IGNORED
+
+                COMPONENT ENDPOINTS (interfaces, ports, bays, inventory-items):
+                  INVALID: {'device__name': 'foo'} or {'device__name__isw': 'foo'}
+                           These are SILENTLY IGNORED and return ALL objects!
+                  VALID:   Use device_id instead. Two-step pattern:
+                    1. device = netbox_get_objects('dcim.device', {'name': 'foo'})
+                    2. netbox_get_objects('dcim.interface', {'device_id': device['results'][0]['id']})
 
                 Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
                                  empty, regex, iregex, lt, lte, gt, gte, in
@@ -268,8 +429,8 @@ def netbox_get_objects(
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
-    # Validate filter patterns
-    validate_filters(filters)
+    # Validate filter patterns (endpoint-aware)
+    validate_filters(filters, object_type=object_type)
 
     # Get API endpoint and fallback from mapping
     endpoint, fallback = _get_endpoint_info(object_type)
