@@ -503,3 +503,79 @@ def test_type_details_query_string_has_quoted_type_name(mock_netbox_client: Magi
     assert '"DeviceType"' in query_sent, (
         f"Type name must be quoted in query. Got: {query_sent[:200]}"
     )
+
+
+# --- Integration Tests ---
+
+
+def test_all_three_tools_are_registered():
+    """All 3 GraphQL tools should be registered when register_graphql_tools is called."""
+    capture = _ToolCapture()
+    mock_client = MagicMock(spec=NetBoxRestClient)
+    register_graphql_tools(capture, mock_client)
+
+    assert "netbox_graphql_query" in capture.tools
+    assert "netbox_graphql_schema_search" in capture.tools
+    assert "netbox_graphql_type_details" in capture.tools
+
+
+def test_schema_search_then_type_details_workflow(mock_netbox_client: MagicMock):
+    """Verify the discovery workflow: search schema -> get type details -> execute query."""
+    capture = _ToolCapture()
+    register_graphql_tools(capture, mock_netbox_client)
+
+    schema_search = capture.tools["netbox_graphql_schema_search"]
+    type_details = capture.tools["netbox_graphql_type_details"]
+    query_tool = capture.tools["netbox_graphql_query"]
+
+    # Step 1: Search for "device" types
+    mock_netbox_client.graphql.return_value = {
+        "data": {
+            "__schema": {
+                "types": [
+                    {
+                        "name": "DeviceType",
+                        "kind": "OBJECT",
+                        "description": "A network device",
+                        "fields": [
+                            {"name": "id", "description": "ID"},
+                            {"name": "name", "description": "Name"},
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    search_result = schema_search(keyword="device")
+    assert "matching_types" in search_result
+
+    # Step 2: Get details for DeviceType
+    mock_netbox_client.graphql.return_value = {
+        "data": {
+            "__type": {
+                "name": "DeviceType",
+                "kind": "OBJECT",
+                "description": "A network device",
+                "fields": [
+                    {
+                        "name": "id",
+                        "description": "ID",
+                        "type": {"name": "Int", "kind": "SCALAR", "ofType": None},
+                        "args": [],
+                    }
+                ],
+                "enumValues": None,
+                "inputFields": None,
+            }
+        }
+    }
+    details_result = type_details(type_name="DeviceType")
+    assert details_result.get("name") == "DeviceType"
+
+    # Step 3: Execute a query using what we learned
+    mock_netbox_client.graphql.return_value = {
+        "data": {"device_list": [{"id": 1, "name": "router-01"}]}
+    }
+    query_result = query_tool(query="{ device_list(pagination: {limit: 10}) { id name } }")
+    assert "data" in query_result
+    assert query_result["data"]["device_list"][0]["name"] == "router-01"

@@ -13,9 +13,13 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 
 | Tool | Description |
 |------|-------------|
-| get_objects | Retrieves NetBox core objects based on their type and filters |
-| get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
-| get_changelogs | Retrieves change history records (audit trail) based on filters |
+| `get_objects` | Retrieves NetBox core objects based on their type and filters |
+| `get_object_by_id` | Gets detailed information about a specific NetBox object by its ID |
+| `get_changelogs` | Retrieves change history records (audit trail) based on filters |
+| `search_objects` | Searches across multiple object types simultaneously |
+| `graphql_query` | Executes raw GraphQL queries for cross-object data with precise field selection |
+| `graphql_schema_search` | Searches the NetBox GraphQL schema for types and fields by keyword |
+| `graphql_type_details` | Returns detailed field and argument information for a specific GraphQL type |
 
 > Note: the set of supported object types is explicitly defined and limited to the core NetBox objects for now, and won't work with object types from plugins.
 
@@ -150,6 +154,83 @@ devices = netbox_get_objects(
 - **Sites:** `['id', 'name', 'status', 'region', 'description']`
 
 The `fields` parameter uses NetBox's native field filtering. See the [NetBox API documentation](https://docs.netbox.dev/en/stable/integrations/rest-api/) for details.
+
+## GraphQL Tools
+
+The server exposes three GraphQL tools that complement the REST tools, enabling efficient cross-object queries in a single call:
+
+| Tool | Purpose |
+|------|---------|
+| `graphql_query` | Execute raw GraphQL queries against NetBox |
+| `graphql_schema_search` | Discover types and fields by keyword |
+| `graphql_type_details` | Inspect fields and arguments for a specific type |
+
+GraphQL is significantly more efficient than REST for complex queries: a single GraphQL query can retrieve devices, their interfaces, and IP addresses — what would otherwise require 3+ REST tool calls.
+
+**Requirement**: GraphQL must be enabled in your NetBox instance (`GRAPHQL_ENABLED = True`, which is the default). NetBox exposes the GraphQL endpoint at `/graphql/`.
+
+### Discovering the Schema
+
+Use `graphql_schema_search` to discover what types and fields are available before writing a query:
+
+```text
+> Use graphql_schema_search to find types related to "interface"
+> Use graphql_type_details to see all fields on InterfaceType
+> Then use graphql_query to fetch device interfaces and their IPs in one call
+```
+
+### Example Queries
+
+**Devices with interfaces and IP addresses** (replaces 3+ REST calls):
+```graphql
+query {
+  device_list(
+    filters: { status: "active" }
+    pagination: { limit: 10 }
+  ) {
+    id
+    name
+    site { name }
+    interfaces(filters: { enabled: true }) {
+      name
+      ip_addresses { address dns_name }
+    }
+    primary_ip4 { address }
+  }
+}
+```
+
+**IP addresses in a prefix**:
+```graphql
+query {
+  ip_address_list(
+    filters: { parent: "10.0.0.0/24" }
+    pagination: { limit: 50 }
+  ) {
+    address
+    dns_name
+    status
+  }
+}
+```
+
+**Sites with region hierarchy**:
+```graphql
+query {
+  site_list(
+    filters: { status: "active" }
+    pagination: { limit: 20 }
+  ) {
+    name
+    status
+    region { name parent { name } }
+    tenant { name }
+  }
+}
+```
+
+> **Note**: All field names use `snake_case` (e.g., `device_list`, `primary_ip4`, `dns_name`). Always include `pagination` in list queries to avoid large responses.
+
 
 ## Configuration
 
