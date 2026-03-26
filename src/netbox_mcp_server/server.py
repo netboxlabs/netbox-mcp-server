@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from netbox_mcp_server.config import Settings, configure_logging
+from netbox_mcp_server.graphql_tools import register_graphql_tools
 from netbox_mcp_server.netbox_client import NetBoxRestClient
 from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
 
@@ -569,6 +570,8 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Failed to initialize NetBox client: {e}")
         sys.exit(1)
+
+    register_graphql_tools(mcp, netbox)
 
     try:
         if settings.transport == "stdio":
