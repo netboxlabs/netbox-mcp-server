@@ -46,8 +46,34 @@ def register_graphql_tools(mcp_instance: FastMCP, netbox_client: NetBoxRestClien
         All field names use snake_case (e.g., device_list, primary_ip4, site_id).
 
         Examples:
-            query { device_list(pagination: {limit: 10}) { id name } }
-            query { ip_address_list(pagination: {limit: 50}) { address dns_name } }
+            Devices with interfaces and IPs (replaces 3+ REST calls):
+                query {
+                  device_list(
+                    filters: { status: "active" }
+                    pagination: { limit: 10 }
+                  ) {
+                    id
+                    name
+                    site { name }
+                    interfaces(filters: { enabled: true }) {
+                      name
+                      ip_addresses { address dns_name }
+                    }
+                    primary_ip4 { address }
+                  }
+                }
+
+            IP addresses in a prefix:
+                query {
+                  ip_address_list(
+                    filters: { parent: "10.0.0.0/24" }
+                    pagination: { limit: 50 }
+                  ) {
+                    address
+                    dns_name
+                    status
+                  }
+                }
 
         Args:
             query: GraphQL query string to execute against NetBox
@@ -79,9 +105,9 @@ def register_graphql_tools(mcp_instance: FastMCP, netbox_client: NetBoxRestClien
         are available. Search by concept name to find relevant types.
 
         Examples:
-            netbox_graphql_schema_search("device") -> finds DeviceType, device_list, etc.
-            netbox_graphql_schema_search("interface") -> finds InterfaceType and related fields
-            netbox_graphql_schema_search("ip") -> finds IPAddressType, ip_address_list, etc.
+            netbox_graphql_schema_search("device") -> returns matching types and fields
+            netbox_graphql_schema_search("interface") -> returns interface-related types and fields
+            netbox_graphql_schema_search("ip") -> returns IP-related types and fields
 
         Args:
             keyword: Case-insensitive keyword to search for in type names and field names
