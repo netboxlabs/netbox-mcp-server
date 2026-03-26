@@ -576,6 +576,8 @@ def test_schema_search_then_type_details_workflow(mock_netbox_client: MagicMock)
     mock_netbox_client.graphql.return_value = {
         "data": {"device_list": [{"id": 1, "name": "router-01"}]}
     }
-    query_result = query_tool(query="{ device_list(pagination: {limit: 10}) { id name } }")
+    query_result = query_tool(
+        query="{ device_list(filters: { status: STATUS_ACTIVE }) { id name } }"
+    )
     assert "data" in query_result
     assert query_result["data"]["device_list"][0]["name"] == "router-01"

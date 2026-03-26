@@ -40,17 +40,18 @@ def register_graphql_tools(mcp_instance: FastMCP, netbox_client: NetBoxRestClien
         Use netbox_graphql_schema_search to discover available types and fields.
         Use netbox_graphql_type_details to inspect specific type structure.
 
-        CRITICAL: Always include pagination in list queries, e.g.:
-            device_list(pagination: {limit: 50})
-
         All field names use snake_case (e.g., device_list, primary_ip4, site_id).
+
+        On NetBox 4.3+, use pagination to limit list results and avoid large responses:
+            device_list(pagination: {limit: 50, offset: 0})
+        On older NetBox, use filters to narrow results and select only needed fields.
 
         Examples:
             Devices with interfaces and IPs (replaces 3+ REST calls):
                 query {
                   device_list(
                     filters: { status: "active" }
-                    pagination: { limit: 10 }
+                    pagination: { limit: 10, offset: 0 }
                   ) {
                     id
                     name
@@ -67,7 +68,7 @@ def register_graphql_tools(mcp_instance: FastMCP, netbox_client: NetBoxRestClien
                 query {
                   ip_address_list(
                     filters: { parent: "10.0.0.0/24" }
-                    pagination: { limit: 50 }
+                    pagination: { limit: 50, offset: 0 }
                   ) {
                     address
                     dns_name

@@ -383,7 +383,7 @@ class NetBoxRestClient(NetBoxClientBase):
             return {
                 "error": (
                     f"Response too large ({len(response.content):,} bytes, limit 500KB). "
-                    "Narrow your query by selecting fewer fields or adding filters/pagination."
+                    "Narrow your query by selecting fewer fields or adding more specific filters."
                 )
             }
 

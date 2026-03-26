@@ -186,7 +186,7 @@ Use `graphql_schema_search` to discover what types and fields are available befo
 query {
   device_list(
     filters: { status: "active" }
-    pagination: { limit: 10 }
+    pagination: { limit: 10, offset: 0 }
   ) {
     id
     name
@@ -205,7 +205,7 @@ query {
 query {
   ip_address_list(
     filters: { parent: "10.0.0.0/24" }
-    pagination: { limit: 50 }
+    pagination: { limit: 50, offset: 0 }
   ) {
     address
     dns_name
@@ -219,7 +219,7 @@ query {
 query {
   site_list(
     filters: { status: "active" }
-    pagination: { limit: 20 }
+    pagination: { limit: 20, offset: 0 }
   ) {
     name
     status
@@ -229,7 +229,7 @@ query {
 }
 ```
 
-> **Note**: All field names use `snake_case` (e.g., `device_list`, `primary_ip4`, `dns_name`). Always include `pagination` in list queries to avoid large responses.
+> **Note**: All field names use `snake_case` (e.g., `device_list`, `primary_ip4`, `dns_name`). The `pagination` argument requires NetBox 4.3+. On older versions, use `filters` to narrow results.
 
 
 ## Configuration
