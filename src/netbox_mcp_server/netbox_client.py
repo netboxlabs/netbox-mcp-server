@@ -345,3 +345,46 @@ class NetBoxRestClient(NetBoxClientBase):
         response = self.session.delete(url, json=data, verify=self.verify_ssl)
         response.raise_for_status()
         return response.status_code == 204
+
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Execute a GraphQL query against the NetBox GraphQL API.
+
+        Args:
+            query: The GraphQL query string to execute
+            variables: Optional dictionary of query variables
+
+        Returns:
+            The GraphQL response as a dict with 'data' and/or 'errors' keys.
+            If the response exceeds 500KB, returns a dict with an 'error' key
+            describing the issue and guidance to narrow the query.
+
+        Raises:
+            requests.HTTPError: If the HTTP request fails (4xx/5xx)
+            ValueError: If the response is not JSON (GraphQL may be disabled or unavailable)
+        """
+        url = f"{self.base_url}/graphql/"
+        payload: dict[str, Any] = {"query": query}
+        if variables:
+            payload["variables"] = variables
+
+        response = self.session.post(url, json=payload, verify=self.verify_ssl)
+        response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            raise ValueError(
+                f"NetBox returned non-JSON response (Content-Type: {content_type}). "
+                "GraphQL may be disabled (GRAPHQL_ENABLED=False) or unavailable."
+            )
+
+        max_size = 500 * 1024
+        if len(response.content) > max_size:
+            return {
+                "error": (
+                    f"Response too large ({len(response.content):,} bytes, limit 500KB). "
+                    "Narrow your query by selecting fewer fields or adding filters/pagination."
+                )
+            }
+
+        return response.json()
