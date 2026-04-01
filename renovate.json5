@@ -37,6 +37,14 @@
       minimumReleaseAge: '3 days',
     },
 
+    // aquasecurity org has a GitHub IP allow list that blocks GraphQL API
+    // queries, causing the default github-tags datasource to fail. Use
+    // github-releases (REST API) instead.
+    {
+      matchPackageNames: ['aquasecurity/trivy-action'],
+      datasource: 'github-releases',
+    },
+
     // Major updates always separate for manual review
     {
       description: 'Separate major updates for manual review',
