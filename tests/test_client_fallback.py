@@ -7,8 +7,8 @@ compatibility when endpoints move between API versions.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
 from netbox_mcp_server.netbox_client import NetBoxRestClient
 
