@@ -8,7 +8,7 @@ This module provides a base class for NetBox client implementations and a REST A
 import abc
 from typing import Any
 
-import requests
+import httpx
 
 
 class NetBoxClientBase(abc.ABC):
@@ -174,7 +174,7 @@ class NetBoxRestClient(NetBoxClientBase):
         self.api_url = f"{self.base_url}/api"
         self.token = token
         self.verify_ssl = verify_ssl
-        self.session = requests.Session()
+        self.session = httpx.Client(verify=self.verify_ssl)
         self.session.headers.update(
             {
                 "Authorization": f"Token {token}",
@@ -216,15 +216,15 @@ class NetBoxRestClient(NetBoxClientBase):
                 - results: Array of objects for this page
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params, verify=self.verify_ssl)
+        response = self.session.get(url, params=params)
 
         # Try fallback endpoint if primary returns 404
         if response.status_code == 404 and fallback_endpoint:
             fallback_url = self._build_url(fallback_endpoint, id)
-            response = self.session.get(fallback_url, params=params, verify=self.verify_ssl)
+            response = self.session.get(fallback_url, params=params)
 
         response.raise_for_status()
 
@@ -242,10 +242,10 @@ class NetBoxRestClient(NetBoxClientBase):
             The created object as a dict
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
-        response = self.session.post(url, json=data, verify=self.verify_ssl)
+        response = self.session.post(url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -262,10 +262,10 @@ class NetBoxRestClient(NetBoxClientBase):
             The updated object as a dict
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.patch(url, json=data, verify=self.verify_ssl)
+        response = self.session.patch(url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -281,10 +281,10 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.delete(url, verify=self.verify_ssl)
+        response = self.session.delete(url)
         response.raise_for_status()
         return response.status_code == 204
 
@@ -300,10 +300,10 @@ class NetBoxRestClient(NetBoxClientBase):
             List of created objects as dicts
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.post(url, json=data, verify=self.verify_ssl)
+        response = self.session.post(url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -319,10 +319,10 @@ class NetBoxRestClient(NetBoxClientBase):
             List of updated objects as dicts
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.patch(url, json=data, verify=self.verify_ssl)
+        response = self.session.patch(url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -338,10 +338,10 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
         data = [{"id": id} for id in ids]
-        response = self.session.delete(url, json=data, verify=self.verify_ssl)
+        response = self.session.delete(url, json=data)
         response.raise_for_status()
         return response.status_code == 204
