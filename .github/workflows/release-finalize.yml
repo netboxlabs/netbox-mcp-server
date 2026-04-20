@@ -49,7 +49,7 @@ jobs:
               content = f.read()
 
           pattern = re.compile(
-              rf"^#+\s*v?{re.escape(version)}\b[^\n]*\n(.*?)(?=\n#+\s|\Z)",
+              rf"^## v?{re.escape(version)}\b[^\n]*\n(.*?)(?=\n## |\Z)",
               re.MULTILINE | re.DOTALL,
           )
           match = pattern.search(content)
