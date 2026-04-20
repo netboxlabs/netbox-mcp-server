@@ -14,7 +14,6 @@ on:
 
 concurrency:
   group: release-finalize
-  cancel-in-progress: false
 
 jobs:
   finalize:
@@ -29,16 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 0
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read version from pyproject.toml
         id: version
         run: |
           VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           printf 'version=%s\n' "${VERSION}" >> "${GITHUB_OUTPUT}"
-          printf 'tag=v%s\n' "${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Extract release notes from CHANGELOG
         env:
@@ -63,22 +59,13 @@ jobs:
               print(f"See `CHANGELOG.md` for v{version}.")
           PYEOF
 
-      - name: Create and push tag
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${TAG}" "${MERGE_SHA}" -m "Release ${TAG}"
-          git push origin "${TAG}"
-
-      - name: Publish GitHub Release
+      - name: Tag and publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          gh release create "${TAG}" \
-            --title "${TAG}" \
-            --notes-file release_notes.md \
-            --verify-tag
+          gh release create "v${VERSION}" \
+            --target "${MERGE_SHA}" \
+            --title "v${VERSION}" \
+            --notes-file release_notes.md

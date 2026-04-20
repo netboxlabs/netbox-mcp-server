@@ -12,7 +12,6 @@ on:
 
 concurrency:
   group: release-pr
-  cancel-in-progress: false
 
 jobs:
   open-release-pr:
@@ -26,48 +25,24 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.14.4"
-
-      - name: Install dependencies
-        run: uv sync
 
       - name: Compute next version and update files
         id: semrel
         run: |
-          uv run semantic-release version \
+          uvx --from 'python-semantic-release==10.5.3' semantic-release version \
             --no-commit --no-push --no-tag --no-vcs-release --skip-build
-          NEW_VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          NEW_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           printf 'new_version=%s\n' "${NEW_VERSION}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect whether release is needed
-        id: has_changes
-        run: |
-          if git diff --quiet -- pyproject.toml src/netbox_mcp_server/__init__.py CHANGELOG.md; then
-            printf 'changed=false\n' >> "${GITHUB_OUTPUT}"
-            echo "No releasable changes since the last release."
-          else
-            printf 'changed=true\n' >> "${GITHUB_OUTPUT}"
-          fi
-
       - name: Create or update release PR
-        if: steps.has_changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           branch: release/next
           base: main
           title: "chore(release): v${{ steps.semrel.outputs.new_version }}"
-          commit-message: "chore(release): v${{ steps.semrel.outputs.new_version }}"
           body: |
             Automated release PR for **v${{ steps.semrel.outputs.new_version }}**.
 
