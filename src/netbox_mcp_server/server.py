@@ -125,7 +125,13 @@ def _is_empty_string(value: str) -> bool:
 
 
 def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
-    """Parse filters parameter from JSON string or dict."""
+    """Parse filters parameter from JSON string or dict.
+
+    MCP clients always send a JSON string (tool schema advertises `string`).
+    The dict branch is a convenience for direct Python callers (tests,
+    library usage); it is unreachable via the MCP boundary because Pydantic
+    rejects non-string inputs before the function runs.
+    """
     if filters is None:
         return {}
     if isinstance(filters, dict):
@@ -139,7 +145,13 @@ def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _parse_list_param(value: str | list[str] | None) -> list[str]:
-    """Parse list parameter from comma-separated string or list."""
+    """Parse list parameter from comma-separated string or list.
+
+    MCP clients always send a comma-separated string (tool schema advertises
+    `string`). The list branch is a convenience for direct Python callers; it
+    is unreachable via the MCP boundary because Pydantic rejects non-string
+    inputs before the function runs.
+    """
     if value is None:
         return []
     if isinstance(value, list):
@@ -291,6 +303,8 @@ def netbox_get_objects(
     filters: str = "{}",
     fields: str = "",
     brief: bool = False,
+    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
+    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
     limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
     offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
     ordering: str = "",
@@ -335,6 +349,8 @@ def netbox_get_objects(
 @mcp.tool
 def netbox_get_object_by_id(
     object_type: str,
+    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
+    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
     object_id: float,
     fields: str = "",
     brief: bool = False,
@@ -508,6 +524,8 @@ def netbox_search_objects(
     query: str,
     object_types: str = "",
     fields: str = "",
+    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
+    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
     limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
 ) -> dict[str, list[dict[str, Any]]]:
     """
