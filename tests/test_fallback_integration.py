@@ -27,7 +27,7 @@ def test_get_objects_passes_fallback_for_objecttype(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="core.objecttype", filters={})
+    netbox_get_objects(object_type="core.objecttype", filters={})
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -44,7 +44,7 @@ def test_get_objects_no_fallback_for_regular_types(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.device", filters={})
+    netbox_get_objects(object_type="dcim.device", filters={})
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -61,7 +61,7 @@ def test_get_objects_uses_primary_endpoint_for_objecttype(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="core.objecttype", filters={})
+    netbox_get_objects(object_type="core.objecttype", filters={})
 
     call_args = mock_netbox.get.call_args
     # First positional arg is the endpoint
@@ -79,7 +79,7 @@ def test_get_object_by_id_passes_fallback_for_objecttype(mock_netbox):
     """netbox_get_object_by_id should pass fallback_endpoint for core.objecttype."""
     mock_netbox.get.return_value = {"id": 1, "name": "dcim.device"}
 
-    netbox_get_object_by_id.fn(object_type="core.objecttype", object_id=1)
+    netbox_get_object_by_id(object_type="core.objecttype", object_id=1)
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -92,7 +92,7 @@ def test_get_object_by_id_no_fallback_for_regular_types(mock_netbox):
     """netbox_get_object_by_id should pass None fallback for types without fallback."""
     mock_netbox.get.return_value = {"id": 1, "name": "Test Device"}
 
-    netbox_get_object_by_id.fn(object_type="dcim.device", object_id=1)
+    netbox_get_object_by_id(object_type="dcim.device", object_id=1)
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -104,7 +104,7 @@ def test_get_object_by_id_uses_primary_endpoint_with_id(mock_netbox):
     """netbox_get_object_by_id should use correct primary endpoint with ID."""
     mock_netbox.get.return_value = {"id": 42, "name": "dcim.site"}
 
-    netbox_get_object_by_id.fn(object_type="core.objecttype", object_id=42)
+    netbox_get_object_by_id(object_type="core.objecttype", object_id=42)
 
     call_args = mock_netbox.get.call_args
     # First positional arg is the endpoint with ID
@@ -127,7 +127,7 @@ def test_search_objects_passes_fallback_for_objecttype(mock_netbox):
         "previous": None,
     }
 
-    netbox_search_objects.fn(query="device", object_types=["core.objecttype"])
+    netbox_search_objects(query="device", object_types=["core.objecttype"])
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -144,7 +144,7 @@ def test_search_objects_no_fallback_for_regular_types(mock_netbox):
         "previous": None,
     }
 
-    netbox_search_objects.fn(query="switch", object_types=["dcim.device"])
+    netbox_search_objects(query="switch", object_types=["dcim.device"])
 
     mock_netbox.get.assert_called_once()
     call_kwargs = mock_netbox.get.call_args[1]
@@ -161,7 +161,7 @@ def test_search_objects_mixed_types_with_and_without_fallback(mock_netbox):
         "previous": None,
     }
 
-    netbox_search_objects.fn(query="test", object_types=["dcim.device", "core.objecttype"])
+    netbox_search_objects(query="test", object_types=["dcim.device", "core.objecttype"])
 
     assert mock_netbox.get.call_count == 2
 
@@ -191,7 +191,7 @@ def test_config_context_profile_no_fallback(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="extras.configcontextprofile", filters={})
+    netbox_get_objects(object_type="extras.configcontextprofile", filters={})
 
     call_kwargs = mock_netbox.get.call_args[1]
     assert call_kwargs["fallback_endpoint"] is None
@@ -207,7 +207,7 @@ def test_owner_no_fallback(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="users.owner", filters={})
+    netbox_get_objects(object_type="users.owner", filters={})
 
     call_kwargs = mock_netbox.get.call_args[1]
     assert call_kwargs["fallback_endpoint"] is None
@@ -223,7 +223,7 @@ def test_owner_group_no_fallback(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="users.ownergroup", filters={})
+    netbox_get_objects(object_type="users.ownergroup", filters={})
 
     call_kwargs = mock_netbox.get.call_args[1]
     assert call_kwargs["fallback_endpoint"] is None

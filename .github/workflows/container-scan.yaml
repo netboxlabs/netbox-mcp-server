@@ -1,0 +1,142 @@
+name: Container Scan
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Dockerfile"
+      - ".github/workflows/container-scan.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-scan:
+    name: Build & Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      security-events: write
+    env:
+      TRIVY_DISABLE_VEX_NOTICE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Build image
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: .
+          load: true
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: netbox-mcp-server:scan
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: netbox-mcp-server:scan
+          format: json
+          output: trivy-output.json
+          vuln-type: os,library
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          ignore-unfixed: true
+          exit-code: "0"
+          list-all-pkgs: "true"
+
+      - name: Build scan summary
+        id: scan-summary
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('trivy-output.json', 'utf8'));
+            const vulns = (data.Results || []).flatMap(r =>
+              (r.Vulnerabilities || []).map(v => ({ ...v, target: r.Target }))
+            );
+            const blockingSeverities = new Set(['CRITICAL', 'HIGH']);
+            const SEVERITY_LABEL = { CRITICAL: '🔴 **CRITICAL**', HIGH: '🟠 **HIGH**', MEDIUM: '🟡 MEDIUM', LOW: '⚪ LOW' };
+            const hasBlocking = vulns.some(v => blockingSeverities.has(v.Severity));
+            core.setOutput('has_blocking', hasBlocking.toString());
+            const buildTable = (vulns) => {
+              if (vulns.length === 0) return '_No vulnerabilities found._\n';
+              let t = '| Source | Library | CVE | Severity | Installed | Fixed | Title |\n|---|---|---|---|---|---|---|\n';
+              for (const v of vulns) {
+                const title = (v.Title || '').replace(/\|/g, '\\|').substring(0, 80);
+                const cve = v.PrimaryURL ? `[${v.VulnerabilityID}](${v.PrimaryURL})` : v.VulnerabilityID;
+                const source = (v.target || '').replace(/\|/g, '\|');
+                t += `| ${source} | ${v.PkgName} | ${cve} | ${SEVERITY_LABEL[v.Severity] || v.Severity} | ${v.InstalledVersion} | ${v.FixedVersion || 'N/A'} | ${title} |\n`;
+              }
+              return t;
+            };
+            const table = buildTable(vulns);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '## Vulnerability Scan Results\n\n' + table);
+            fs.writeFileSync('scan-result.json', JSON.stringify({ table, hasBlocking }));
+
+      - name: Post scan results as PR comment
+        if: github.event_name == 'pull_request'
+        continue-on-error: true  # Fork PRs have read-only tokens and can't post comments
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const { table, hasBlocking } = JSON.parse(fs.readFileSync('scan-result.json', 'utf8'));
+            const heading = hasBlocking
+              ? '## Vulnerability Scan: Failed — blocking vulnerabilities detected'
+              : '## Vulnerability Scan: Passed';
+            const commitSha = process.env.COMMIT_SHA;
+            const marker = '<!-- trivy-scan-results -->';
+            const body = `${marker}\n${heading}\n\n**Image:** \`netbox-mcp-server:scan\`\n\n${table}\n*Commit: ${commitSha}*`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
+
+      - name: Fail on blocking vulnerabilities
+        if: steps.scan-summary.outputs.has_blocking == 'true'
+        run: |
+          echo "Blocking vulnerabilities found (CRITICAL or HIGH). Failing build."
+          exit 1
+
+      - name: Convert scan results to SBOM
+        if: "!cancelled()"
+        run: trivy convert --format cyclonedx --output sbom.cdx.json trivy-output.json
+
+      - name: Upload SBOM artifact
+        if: "!cancelled()"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.cdx.json
+          retention-days: 90
+
+      - name: Convert scan results to SARIF
+        if: "!cancelled()"
+        run: trivy convert --format sarif --output trivy-results.sarif trivy-output.json
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: "!cancelled()"
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        with:
+          sarif_file: trivy-results.sarif

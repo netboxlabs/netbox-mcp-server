@@ -1,0 +1,70 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended', ':dependencyDashboard', ':semanticCommits'],
+
+  // Schedule inherited from central config.js (before 4am UTC on weekdays)
+
+  labels: ['dependencies'],
+
+  // Bump lower bounds in pyproject.toml even when the constraint already allows the new version
+  rangeStrategy: 'bump',
+
+  packageRules: [
+    // Don't bump requires-python — it defines minimum supported version, not installed version
+    {
+      matchDepNames: ['python'],
+      matchManagers: ['pep621'],
+      enabled: false,
+    },
+
+    // Python
+    {
+      description: 'Group non-major Python dependency updates',
+      matchManagers: ['pep621', 'uv'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'non-major Python dependencies',
+      minimumReleaseAge: '3 days',
+    },
+
+    // GitHub Actions
+    {
+      description: 'GitHub Actions - SHA-pin and group non-major updates',
+      matchManagers: ['github-actions'],
+      pinDigests: true,
+      matchUpdateTypes: ['minor', 'patch', 'pin', 'digest'],
+      groupName: 'non-major GitHub Actions',
+      minimumReleaseAge: '3 days',
+    },
+
+    // Docker
+    {
+      description: 'Group non-major Docker dependency updates',
+      matchManagers: ['dockerfile'],
+      matchUpdateTypes: ['minor', 'patch', 'pin', 'digest'],
+      groupName: 'non-major Docker dependencies',
+      minimumReleaseAge: '3 days',
+    },
+
+    // Major updates always separate for manual review
+    {
+      description: 'Separate major updates for manual review',
+      matchUpdateTypes: ['major'],
+      groupName: null,
+    },
+
+    // Security
+    {
+      description: 'Prioritise security updates',
+      matchCategories: ['security'],
+      groupName: null,
+      labels: ['dependencies', 'security'],
+      minimumReleaseAge: null,
+      prPriority: 10,
+    },
+  ],
+
+  vulnerabilityAlerts: {
+    labels: ['security'],
+    minimumReleaseAge: null,
+  },
+}

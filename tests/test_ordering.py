@@ -10,7 +10,7 @@ from netbox_mcp_server.server import netbox_get_objects
 
 def test_ordering_rejects_invalid_types():
     """Ordering parameter should reject non-string types."""
-    ordering_annotation = netbox_get_objects.fn.__annotations__["ordering"]
+    ordering_annotation = netbox_get_objects.__annotations__["ordering"]
     adapter = TypeAdapter(ordering_annotation)
 
     with pytest.raises(ValidationError):
@@ -34,7 +34,7 @@ def test_ordering_default_omits_parameter(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={})
+    netbox_get_objects(object_type="dcim.site", filters={})
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -53,7 +53,7 @@ def test_ordering_empty_string_omits_parameter(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="")
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering="")
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -72,7 +72,7 @@ def test_ordering_single_field_ascending(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="name")
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering="name")
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -90,7 +90,7 @@ def test_ordering_single_field_descending(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="-id")
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering="-id")
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -108,7 +108,7 @@ def test_ordering_multiple_fields_comma_separated(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="facility,-name")
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering="facility,-name")
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]
@@ -127,7 +127,7 @@ def test_ordering_whitespace_only_omits_parameter(mock_netbox):
         "previous": None,
     }
 
-    netbox_get_objects.fn(object_type="dcim.site", filters={}, ordering="   ")
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering="   ")
 
     call_args = mock_netbox.get.call_args
     params = call_args[1]["params"]

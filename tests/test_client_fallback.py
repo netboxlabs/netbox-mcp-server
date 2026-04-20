@@ -7,8 +7,8 @@ compatibility when endpoints move between API versions.
 
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
-import requests
 
 from netbox_mcp_server.netbox_client import NetBoxRestClient
 
@@ -80,12 +80,14 @@ def test_fallback_not_triggered_on_non_404_error(client):
     """When primary returns 500/403/etc, should NOT try fallback."""
     primary_response = MagicMock()
     primary_response.status_code = 500
-    primary_response.raise_for_status.side_effect = requests.HTTPError("Server error")
+    primary_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Server error", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.return_value = primary_response
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(httpx.HTTPStatusError):
             client.get(
                 "core/object-types",
                 fallback_endpoint="extras/object-types",
@@ -99,12 +101,14 @@ def test_fallback_not_triggered_on_403_forbidden(client):
     """When primary returns 403 Forbidden, should NOT try fallback."""
     primary_response = MagicMock()
     primary_response.status_code = 403
-    primary_response.raise_for_status.side_effect = requests.HTTPError("Forbidden")
+    primary_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Forbidden", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.return_value = primary_response
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(httpx.HTTPStatusError):
             client.get(
                 "core/object-types",
                 fallback_endpoint="extras/object-types",
@@ -117,12 +121,14 @@ def test_fallback_not_triggered_without_fallback_endpoint(client):
     """When no fallback provided, 404 should propagate immediately."""
     primary_response = MagicMock()
     primary_response.status_code = 404
-    primary_response.raise_for_status.side_effect = requests.HTTPError("Not found")
+    primary_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Not found", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.return_value = primary_response
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(httpx.HTTPStatusError):
             client.get("core/object-types", fallback_endpoint=None)
 
         assert mock_get.call_count == 1
@@ -132,12 +138,14 @@ def test_fallback_not_triggered_with_empty_fallback(client):
     """When fallback is empty string, should not trigger fallback."""
     primary_response = MagicMock()
     primary_response.status_code = 404
-    primary_response.raise_for_status.side_effect = requests.HTTPError("Not found")
+    primary_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Not found", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.return_value = primary_response
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(httpx.HTTPStatusError):
             client.get("core/object-types", fallback_endpoint="")
 
         # Empty string is falsy, so no fallback attempted
@@ -156,12 +164,14 @@ def test_fallback_error_propagates(client):
 
     fallback_response = MagicMock()
     fallback_response.status_code = 500
-    fallback_response.raise_for_status.side_effect = requests.HTTPError("Fallback failed")
+    fallback_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Fallback failed", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
-        with pytest.raises(requests.HTTPError, match="Fallback failed"):
+        with pytest.raises(httpx.HTTPStatusError, match="Fallback failed"):
             client.get(
                 "core/object-types",
                 fallback_endpoint="extras/object-types",
@@ -177,12 +187,14 @@ def test_both_endpoints_404_propagates_fallback_error(client):
 
     fallback_response = MagicMock()
     fallback_response.status_code = 404
-    fallback_response.raise_for_status.side_effect = requests.HTTPError("Not found")
+    fallback_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Not found", request=MagicMock(), response=MagicMock()
+    )
 
     with patch.object(client.session, "get") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(httpx.HTTPStatusError):
             client.get(
                 "core/object-types",
                 fallback_endpoint="extras/object-types",
@@ -245,30 +257,6 @@ def test_fallback_preserves_id_in_url(client):
         fallback_url = mock_get.call_args_list[1][0][0]
         assert "/123/" in primary_url
         assert "/123/" in fallback_url
-
-
-def test_fallback_preserves_verify_ssl(client):
-    """Fallback request should use same SSL verification setting."""
-    primary_response = MagicMock()
-    primary_response.status_code = 404
-
-    fallback_response = MagicMock()
-    fallback_response.status_code = 200
-    fallback_response.json.return_value = {"results": []}
-    fallback_response.raise_for_status = MagicMock()
-
-    with patch.object(client.session, "get") as mock_get:
-        mock_get.side_effect = [primary_response, fallback_response]
-
-        client.get(
-            "core/object-types",
-            fallback_endpoint="extras/object-types",
-        )
-
-        # Both calls should have same verify setting
-        primary_verify = mock_get.call_args_list[0][1]["verify"]
-        fallback_verify = mock_get.call_args_list[1][1]["verify"]
-        assert primary_verify == fallback_verify == True  # noqa: E712
 
 
 # ============================================================================

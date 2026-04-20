@@ -27,7 +27,8 @@ LABEL org.opencontainers.image.title="NetBox MCP Server" \
       org.opencontainers.image.licenses="Apache-2.0"
 ENV PYTHONUNBUFFERED=1
 
-RUN apk add --no-cache ca-certificates \
+RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache ca-certificates \
     && addgroup -g 1000 appuser \
     && adduser -D -u 1000 -G appuser appuser
 

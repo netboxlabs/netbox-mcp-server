@@ -127,9 +127,6 @@ def configure_logging(
             "httpx": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
-            "requests": {
-                "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
-            },
         },
         "root": {
             "level": log_level,
