@@ -1,0 +1,84 @@
+name: Finalize Release
+
+# Triggered when a release PR (label: `release`) merges into main. Creates the
+# git tag at the merge commit and publishes a GitHub Release with the CHANGELOG
+# section for this version.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: release-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    name: Tag and publish
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          printf 'version=%s\n' "${VERSION}" >> "${GITHUB_OUTPUT}"
+          printf 'tag=v%s\n' "${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PYEOF' > release_notes.md
+          import os
+          import re
+
+          version = os.environ["VERSION"]
+          with open("CHANGELOG.md", encoding="utf-8") as f:
+              content = f.read()
+
+          pattern = re.compile(
+              rf"^#+\s*v?{re.escape(version)}\b[^\n]*\n(.*?)(?=\n#+\s|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          match = pattern.search(content)
+          if match:
+              print(match.group(1).strip())
+          else:
+              print(f"See `CHANGELOG.md` for v{version}.")
+          PYEOF
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" "${MERGE_SHA}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file release_notes.md \
+            --verify-tag

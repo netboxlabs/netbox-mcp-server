@@ -1,24 +1,26 @@
-name: Release
+name: Release PR
 
-# Global defaults - read-only (least privilege)
+# Opens (or updates) a pull request that bumps the version and appends the
+# CHANGELOG. Merging that PR triggers `release-finalize.yml`, which creates
+# the git tag and GitHub Release.
+
 permissions:
   contents: read
-  issues: read
-  pull-requests: read
 
 on:
   workflow_dispatch:
 
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    environment: release  # Requires manual approval in GitHub settings
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
 
-    # Job-specific write permissions (least privilege)
+jobs:
+  open-release-pr:
+    name: Open release PR
+    runs-on: ubuntu-latest
     permissions:
-      contents: write       # Push tags and CHANGELOG
-      issues: write        # Create release issues
-      pull-requests: write # Create release PRs
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,7 +41,53 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Python Semantic Release
-        uses: python-semantic-release/python-semantic-release@350c48fcb3ffcdfd2e0a235206bc2ecea6b69df0 # v10.5.3
+      - name: Compute next version and update files
+        id: semrel
+        run: |
+          uv run semantic-release version \
+            --no-commit --no-push --no-tag --no-vcs-release --skip-build
+          NEW_VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          printf 'new_version=%s\n' "${NEW_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Detect whether release is needed
+        id: has_changes
+        run: |
+          if git diff --quiet -- pyproject.toml src/netbox_mcp_server/__init__.py CHANGELOG.md; then
+            printf 'changed=false\n' >> "${GITHUB_OUTPUT}"
+            echo "No releasable changes since the last release."
+          else
+            printf 'changed=true\n' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create or update release PR
+        if: steps.has_changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/next
+          base: main
+          title: "chore(release): v${{ steps.semrel.outputs.new_version }}"
+          commit-message: "chore(release): v${{ steps.semrel.outputs.new_version }}"
+          body: |
+            Automated release PR for **v${{ steps.semrel.outputs.new_version }}**.
+
+            Merging this PR triggers `release-finalize.yml`, which creates the
+            `v${{ steps.semrel.outputs.new_version }}` git tag and publishes a
+            GitHub Release with the CHANGELOG notes.
+
+            Files updated by this PR:
+            - `pyproject.toml`
+            - `src/netbox_mcp_server/__init__.py`
+            - `CHANGELOG.md`
+
+            Do not add unrelated commits to this PR. If the release needs to be
+            re-computed, re-run the **Release PR** workflow — it will update
+            this PR in place.
+          add-paths: |
+            pyproject.toml
+            src/netbox_mcp_server/__init__.py
+            CHANGELOG.md
+          labels: |
+            release
+            automated
+          delete-branch: true
