@@ -34,6 +34,7 @@ jobs:
         run: |
           uvx --from 'python-semantic-release==10.5.3' semantic-release version \
             --no-commit --no-push --no-tag --no-vcs-release --skip-build
+          uv lock
           NEW_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           printf 'new_version=%s\n' "${NEW_VERSION}" >> "${GITHUB_OUTPUT}"
 
@@ -62,6 +63,7 @@ jobs:
             pyproject.toml
             src/netbox_mcp_server/__init__.py
             CHANGELOG.md
+            uv.lock
           labels: |
             release
             automated
