@@ -21,7 +21,7 @@ netbox-mcp-server = "netbox_mcp_server.server:main"
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.1",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "python-semantic-release>=10.5.3",
     "ruff>=0.15.8",
