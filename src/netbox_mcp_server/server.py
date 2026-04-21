@@ -123,7 +123,6 @@ DEFAULT_SEARCH_TYPES = [
     "virtualization.virtualmachine",  # VM names
 ]
 
-mcp = FastMCP("NetBox")
 netbox = None
 
 # Some MCP clients (e.g., n8n) send literal strings for empty optional parameters
@@ -137,12 +136,14 @@ def _is_empty_string(value: str) -> bool:
 
 
 def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
-    """Parse filters parameter from JSON string or dict.
+    """Parse filters parameter from JSON string or dict (n8n-compat mode only).
 
-    MCP clients always send a JSON string (tool schema advertises `string`).
-    The dict branch is a convenience for direct Python callers (tests,
-    library usage); it is unreachable via the MCP boundary because Pydantic
-    rejects non-string inputs before the function runs.
+    Called from the compat-mode tool wrappers, which advertise ``filters`` as
+    a JSON string via the MCP schema. Accepts a dict too as a convenience for
+    direct Python callers, but MCP clients in compat mode always send strings.
+
+    Strict-mode (default) wrappers take native dicts and do not call this
+    helper.
     """
     if filters is None:
         return {}
@@ -157,12 +158,14 @@ def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _parse_list_param(value: str | list[str] | None) -> list[str]:
-    """Parse list parameter from comma-separated string or list.
+    """Parse a list parameter from a comma-separated string or list (n8n-compat mode only).
 
-    MCP clients always send a comma-separated string (tool schema advertises
-    `string`). The list branch is a convenience for direct Python callers; it
-    is unreachable via the MCP boundary because Pydantic rejects non-string
-    inputs before the function runs.
+    Called from the compat-mode tool wrappers, which advertise list-like
+    parameters as comma-separated strings via the MCP schema. Accepts a list
+    as a convenience for direct Python callers.
+
+    Strict-mode (default) wrappers take native ``list[str]`` and do not call
+    this helper.
     """
     if value is None:
         return []
@@ -271,49 +274,46 @@ def _netbox_get_objects_impl(
     return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
 
 
-@mcp.tool(
-    description="""
+_NETBOX_GET_OBJECTS_DESCRIPTION = (
+    """
     Get objects from NetBox based on their type and filters
 
     Args:
         object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
-        filters: JSON string of filters to apply to the API call based on the NetBox API filtering options
+        filters: Filters to apply to the API call based on the NetBox API filtering options
 
                 FILTER RULES:
-                Valid: Direct fields like '{"site_id": 1, "name": "router", "status": "active"}'
-                Valid: Lookups like '{"name__ic": "switch", "id__in": [1,2,3], "vid__gte": 100}'
-                Invalid: Multi-hop like '{"device__site_id": 1}' - NOT supported
+                Valid: Direct fields like {"site_id": 1, "name": "router", "status": "active"}
+                Valid: Lookups like {"name__ic": "switch", "id__in": [1,2,3], "vid__gte": 100}
+                Invalid: Multi-hop like {"device__site_id": 1} - NOT supported
 
                 Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
                                  empty, regex, iregex, lt, lte, gt, gte, in
 
                 Two-step pattern for cross-relationship queries:
-                  sites = netbox_get_objects('dcim.site', '{"name": "NYC"}')
-                  netbox_get_objects('dcim.device', '{"site_id": 1}')
+                  sites = netbox_get_objects('dcim.site', {"name": "NYC"})
+                  netbox_get_objects('dcim.device', {"site_id": 1})
 
-        fields: Comma-separated string of specific fields to return
+        fields: List of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
                 Field filtering significantly reduces response payload and is critical for performance.
 
-                - Empty string '' = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
-                - 'id,name' = returns only specified fields (RECOMMENDED)
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ["id", "name"] = returns only specified fields (RECOMMENDED)
 
                 Examples:
-                - For counting: 'id' (minimal payload)
-                - For listings: 'id,name,status'
-                - For IP addresses: 'address,dns_name,description'
+                - For counting: ["id"] (minimal payload)
+                - For listings: ["id", "name", "status"]
+                - For IP addresses: ["address", "dns_name", "description"]
 
                 Uses NetBox's native field filtering via ?fields= parameter.
                 **Always specify only the fields you actually need.**
 
         brief: returns only a minimal representation of each object in the response.
-               This is useful when you need only a list of available objects without any related data.
 
         limit: Maximum results to return (default 5, max 100)
-               Start with default, increase only if needed
 
         offset: Skip this many results for pagination (default 0)
-                Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
 
         ordering: Fields used to determine sort order of results.
                   Field names may be prefixed with '-' to invert the sort order.
@@ -323,21 +323,10 @@ def _netbox_get_objects_impl(
                   - 'name' (alphabetical by name)
                   - '-id' (ordered by ID descending)
                   - 'facility,-name' (by facility, then by name descending)
-                  - '' (default NetBox ordering)
 
 
     Returns:
-        Paginated response dict with the following structure:
-            - count: Total number of objects matching the query
-                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY
-            - next: URL to next page (or null if no more pages)
-                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
-            - previous: URL to previous page (or null if on first page)
-                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
-            - results: Array of objects for this page
-                       ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
-
-    ENSURE YOU ARE AWARE THE RESULTS ARE PAGINATED BEFORE PROVIDING RESPONSE TO THE USER.
+        Paginated response dict with count / next / previous / results.
 
     Valid object_type values:
 
@@ -348,30 +337,25 @@ def _netbox_get_objects_impl(
     See NetBox API documentation for filtering options for each object type.
     """
 )
+
+
 def netbox_get_objects(
     object_type: str,
-    filters: str = "{}",
-    fields: str = "",
+    filters: dict[str, Any] | None = None,
+    fields: list[str] | None = None,
     brief: bool = False,
-    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
-    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
-    limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
-    offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
+    limit: Annotated[int, Field(ge=1, le=100)] = 5,
+    offset: Annotated[int, Field(ge=0)] = 0,
     ordering: str = "",
-):
-    """
-    Get objects from NetBox based on their type and filters
-    """
-    filters_dict = _parse_filters(filters)
-    fields_list = _parse_list_param(fields)
-
+) -> Any:
+    """Strict-mode wrapper (default). Takes native Python types."""
     return _netbox_get_objects_impl(
         object_type=object_type,
-        filters=filters_dict,
-        fields=fields_list,
+        filters=filters or {},
+        fields=fields or [],
         brief=brief,
-        limit=int(limit),
-        offset=int(offset),
+        limit=limit,
+        offset=offset,
         ordering=ordering,
     )
 
@@ -401,45 +385,29 @@ def _netbox_get_object_by_id_impl(
     return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
-@mcp.tool
 def netbox_get_object_by_id(
     object_type: str,
-    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
-    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
-    object_id: float,
-    fields: str = "",
+    object_id: int,
+    fields: list[str] | None = None,
     brief: bool = False,
-):
-    """
+) -> Any:
+    """Strict-mode wrapper for netbox_get_object_by_id.
+
     Get detailed information about a specific NetBox object by its ID.
 
     Args:
-        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
+        object_type: String representing the NetBox object type (e.g. "dcim.device")
         object_id: The numeric ID of the object
-        fields: Comma-separated string of specific fields to return
-                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
-                Field filtering reduces response payload by 80-90% and is critical for performance.
-
-                - Empty string '' = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
-                - 'id,name' = returns only specified fields (RECOMMENDED)
-
-                Examples:
-                - For basic info: 'id,name,status'
-                - For devices: 'id,name,status,site'
-                - For IP addresses: 'address,dns_name,vrf,status'
-
-                Uses NetBox's native field filtering via ?fields= parameter.
-                **Always specify only the fields you actually need.**
-        brief: returns only a minimal representation of the object in the response.
-               This is useful when you need only a summary of the object without any related data.
+        fields: List of specific fields to return (e.g. ["id", "name", "status"])
+        brief: Return only a minimal representation
 
     Returns:
         Object dict (complete or with only requested fields based on fields parameter)
     """
-    fields_list = _parse_list_param(fields)
+    fields_list = fields or []
     return _netbox_get_object_by_id_impl(
         object_type=object_type,
-        object_id=int(object_id),
+        object_id=object_id,
         fields=fields_list,
         brief=brief,
     )
@@ -454,64 +422,18 @@ def _netbox_get_changelogs_impl(filters: dict[str, Any]) -> Any:
     return netbox.get("core/object-changes", params=filters)
 
 
-@mcp.tool
-def netbox_get_changelogs(filters: str = "{}"):
-    """
+def netbox_get_changelogs(filters: dict[str, Any] | None = None) -> Any:
+    """Strict-mode wrapper for netbox_get_changelogs.
+
     Get object change records (changelogs) from NetBox based on filters.
 
     Args:
-        filters: JSON string of filters to apply to the API call based on the NetBox API filtering options
+        filters: Dict of filters to apply to the API call.
 
     Returns:
-        Paginated response dict with the following structure:
-            - count: Total number of changelog entries matching the query
-                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
-            - next: URL to next page (or null if no more pages)
-                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
-            - previous: URL to previous page (or null if on first page)
-                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
-            - results: Array of changelog entries for this page
-                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
-
-    Filtering options include:
-    - user_id: Filter by user ID who made the change
-    - user: Filter by username who made the change
-    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
-                              Note: This expects a numeric ID, not an object type string
-    - changed_object_id: Filter by ID of the changed object
-    - object_repr: Filter by object representation (usually contains object name)
-    - action: Filter by action type (created, updated, deleted)
-    - time_before: Filter for changes made before a given time (ISO 8601 format)
-    - time_after: Filter for changes made after a given time (ISO 8601 format)
-    - q: Search term to filter by object representation
-
-    Examples:
-    To find all changes made to a specific object by ID:
-    '{"changed_object_id": 123}'
-
-    To find changes by object name pattern:
-    '{"object_repr": "router-01"}'
-
-    To find all deletions in the last 24 hours:
-    '{"action": "delete", "time_after": "2023-01-01T00:00:00Z"}'
-
-    Each changelog entry contains:
-    - id: The unique identifier of the changelog entry
-    - user: The user who made the change
-    - user_name: The username of the user who made the change
-    - request_id: The unique identifier of the request that made the change
-    - action: The type of action performed (created, updated, deleted)
-    - changed_object_type: The type of object that was changed
-    - changed_object_id: The ID of the object that was changed
-    - object_repr: String representation of the changed object
-    - object_data: The object's data after the change (null for deletions)
-    - object_data_v2: Enhanced data representation
-    - prechange_data: The object's data before the change (null for creations)
-    - postchange_data: The object's data after the change (null for deletions)
-    - time: The timestamp when the change was made
+        Paginated response dict.
     """
-    filters_dict = _parse_filters(filters)
-    return _netbox_get_changelogs_impl(filters_dict)
+    return _netbox_get_changelogs_impl(filters or {})
 
 
 def _netbox_search_objects_impl(
@@ -549,8 +471,8 @@ def _netbox_search_objects_impl(
     return results
 
 
-@mcp.tool(
-    description="""
+_NETBOX_SEARCH_OBJECTS_DESCRIPTION = (
+    """
     Perform global search across NetBox infrastructure.
 
     Searches names, descriptions, IP addresses, serial numbers, asset tags,
@@ -559,64 +481,33 @@ def _netbox_search_objects_impl(
     Args:
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
-        object_types: Comma-separated string of types to search (optional)
+        object_types: List of types to search (optional)
                      Default: """
     + ",".join(DEFAULT_SEARCH_TYPES)
     + """
-                     Examples: 'dcim.device,ipam.ipaddress,dcim.site'
-        fields: Comma-separated string of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
-                - Empty string '' = returns all fields (no filtering)
-                - 'id,name' = returns only specified fields
-                Examples: 'id,name,status', 'address,dns_name'
-                Uses NetBox's native field filtering via ?fields= parameter
+                     Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
+        fields: List of specific fields to return (reduces response size)
+                Examples: ['id', 'name', 'status'], ['address', 'dns_name']
         limit: Max results per object type (default 5, max 100)
 
     Returns:
         Dictionary with object_type keys and list of matching objects.
-        All searched types present in result (empty list if no matches).
-
-    Example:
-        # Search for anything matching "switch"
-        results = netbox_search_objects('switch')
-        # Returns: {
-        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],
-        #   'dcim.site': [],
-        #   ...
-        # }
-
-        # Search for IP address
-        results = netbox_search_objects('192.168.1.100')
-        # Returns: {
-        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],
-        #   ...
-        # }
-
-        # Limit search to specific types with field projection
-        results = netbox_search_objects(
-            'NYC',
-            object_types='dcim.site,dcim.location',
-            fields='id,name,status'
-        )
     """
 )
+
+
 def netbox_search_objects(
     query: str,
-    object_types: str = "",
-    fields: str = "",
-    # `float` (not `int`) is a workaround for n8n's MCP client, whose mapTypes
-    # table has no entry for JSON Schema "integer". See n8n#19835 and #58.
-    limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
+    object_types: list[str] | None = None,
+    fields: list[str] | None = None,
+    limit: Annotated[int, Field(ge=1, le=100)] = 5,
 ) -> dict[str, list[dict[str, Any]]]:
-    """
-    Perform global search across NetBox infrastructure.
-    """
-    search_types = _parse_list_param(object_types)
-    fields_list = _parse_list_param(fields)
+    """Strict-mode wrapper for netbox_search_objects."""
     return _netbox_search_objects_impl(
         query=query,
-        object_types=search_types,
-        fields=fields_list,
-        limit=int(limit),
+        object_types=object_types or [],
+        fields=fields or [],
+        limit=limit,
     )
 
 
@@ -636,6 +527,96 @@ def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
     """
     type_info = NETBOX_OBJECT_TYPES[object_type]
     return type_info["endpoint"], type_info.get("fallback_endpoint")
+
+
+def _register_strict_tools(mcp: FastMCP) -> None:
+    """Register strict-typed tools (native int/list/dict). Default mode."""
+    mcp.tool(description=_NETBOX_GET_OBJECTS_DESCRIPTION)(netbox_get_objects)
+    mcp.tool()(netbox_get_object_by_id)
+    mcp.tool()(netbox_get_changelogs)
+    mcp.tool(description=_NETBOX_SEARCH_OBJECTS_DESCRIPTION)(netbox_search_objects)
+
+
+def _register_compat_tools(mcp: FastMCP) -> None:
+    """Register string-typed tools for n8n AI Agent MCP client compatibility.
+
+    n8n's MCP client has a hardcoded mapTypes table that does not support
+    JSON Schema integer/array/object. See n8n-io/n8n#20682.
+    """
+
+    @mcp.tool(description=_NETBOX_GET_OBJECTS_DESCRIPTION)
+    def netbox_get_objects(
+        object_type: str,
+        filters: str = "{}",
+        fields: str = "",
+        brief: bool = False,
+        # float (not int) works around n8n's mapTypes missing "integer"
+        limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
+        offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
+        ordering: str = "",
+    ):
+        """n8n-compat wrapper. Parses strings to native types, calls impl."""
+        return _netbox_get_objects_impl(
+            object_type=object_type,
+            filters=_parse_filters(filters),
+            fields=_parse_list_param(fields),
+            brief=brief,
+            limit=int(limit),
+            offset=int(offset),
+            ordering=ordering,
+        )
+
+    @mcp.tool()
+    def netbox_get_object_by_id(
+        object_type: str,
+        object_id: float,
+        fields: str = "",
+        brief: bool = False,
+    ):
+        """n8n-compat wrapper for netbox_get_object_by_id."""
+        return _netbox_get_object_by_id_impl(
+            object_type=object_type,
+            object_id=int(object_id),
+            fields=_parse_list_param(fields),
+            brief=brief,
+        )
+
+    @mcp.tool()
+    def netbox_get_changelogs(filters: str = "{}"):
+        """n8n-compat wrapper for netbox_get_changelogs."""
+        return _netbox_get_changelogs_impl(_parse_filters(filters))
+
+    @mcp.tool(description=_NETBOX_SEARCH_OBJECTS_DESCRIPTION)
+    def netbox_search_objects(
+        query: str,
+        object_types: str = "",
+        fields: str = "",
+        limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """n8n-compat wrapper for netbox_search_objects."""
+        return _netbox_search_objects_impl(
+            query=query,
+            object_types=_parse_list_param(object_types),
+            fields=_parse_list_param(fields),
+            limit=int(limit),
+        )
+
+
+def create_mcp(n8n_compat: bool) -> FastMCP:
+    """Create a FastMCP instance with tools registered for the given mode.
+
+    Args:
+        n8n_compat: If True, register string-typed tool wrappers for the n8n
+                    AI Agent MCP client. If False (default), register
+                    strict JSON Schema types (integer/array/object) as
+                    consumed by most clients (Claude, Cursor, Cline, etc.).
+    """
+    mcp = FastMCP("NetBox")
+    if n8n_compat:
+        _register_compat_tools(mcp)
+    else:
+        _register_strict_tools(mcp)
+    return mcp
 
 
 def main() -> None:
@@ -687,6 +668,10 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Failed to initialize NetBox client: {e}")
         sys.exit(1)
+
+    mcp = create_mcp(n8n_compat=settings.n8n_compat)
+    if settings.n8n_compat:
+        logger.info("n8n compatibility mode ENABLED (string-typed tool parameters)")
 
     try:
         if settings.transport == "stdio":

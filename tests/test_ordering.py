@@ -9,7 +9,7 @@ from netbox_mcp_server.server import netbox_get_objects
 
 
 def test_ordering_rejects_invalid_types():
-    """Ordering parameter should reject non-string types."""
+    """Ordering parameter should reject non-string types but accept strings."""
     ordering_annotation = netbox_get_objects.__annotations__["ordering"]
     adapter = TypeAdapter(ordering_annotation)
 
@@ -19,9 +19,8 @@ def test_ordering_rejects_invalid_types():
     with pytest.raises(ValidationError):
         adapter.validate_python({"field": "name"})
 
-    # Lists are no longer accepted (removed for n8n compatibility)
-    with pytest.raises(ValidationError):
-        adapter.validate_python(["name", "-id"])
+    # Plain strings accepted (multiple fields via comma-separated form)
+    assert adapter.validate_python("name,-id") == "name,-id"
 
 
 @patch("netbox_mcp_server.server.netbox")
