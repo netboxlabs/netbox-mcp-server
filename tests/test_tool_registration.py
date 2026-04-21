@@ -32,9 +32,9 @@ async def _get_filters_types(n8n_compat: bool) -> set[str]:
 
 
 def test_strict_mode_advertises_object_filters():
-    """Default mode advertises filters as JSON object (nullable). No strings allowed."""
+    """Default mode advertises filters as a required JSON object. No strings or null allowed."""
     types = asyncio.run(_get_filters_types(n8n_compat=False))
-    assert types == {"object", "null"}
+    assert types == {"object"}
 
 
 def test_compat_mode_advertises_string_filters():

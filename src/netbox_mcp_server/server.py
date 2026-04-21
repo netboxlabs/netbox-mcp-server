@@ -250,14 +250,18 @@ def _netbox_get_objects_impl(
     Called from both strict and compat tool wrappers. No schema concerns; no
     parsing; no string handling.
     """
+    # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
+    # Validate filter patterns
     validate_filters(filters)
 
+    # Get API endpoint and fallback from mapping
     endpoint, fallback = _get_endpoint_info(object_type)
 
+    # Build params with pagination (parameters override filters dict)
     params = filters.copy()
     params["limit"] = limit
     params["offset"] = offset
@@ -271,6 +275,7 @@ def _netbox_get_objects_impl(
     if ordering and ordering.strip():
         params["ordering"] = ordering
 
+    # Make API call
     return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
 
 
@@ -280,31 +285,31 @@ _NETBOX_GET_OBJECTS_DESCRIPTION = (
 
     Args:
         object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
-        filters: Filters to apply to the API call based on the NetBox API filtering options
+        filters: dict of filters to apply to the API call based on the NetBox API filtering options
 
                 FILTER RULES:
-                Valid: Direct fields like {"site_id": 1, "name": "router", "status": "active"}
-                Valid: Lookups like {"name__ic": "switch", "id__in": [1,2,3], "vid__gte": 100}
-                Invalid: Multi-hop like {"device__site_id": 1} - NOT supported
+                Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
+                Valid: Lookups like {'name__ic': 'switch', 'id__in': [1,2,3], 'vid__gte': 100}
+                Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
 
                 Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
                                  empty, regex, iregex, lt, lte, gt, gte, in
 
                 Two-step pattern for cross-relationship queries:
-                  sites = netbox_get_objects('dcim.site', {"name": "NYC"})
-                  netbox_get_objects('dcim.device', {"site_id": sites[0]['id']})
+                  sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
+                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})
 
-        fields: List of specific fields to return
+        fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
                 Field filtering significantly reduces response payload and is critical for performance.
 
                 - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
-                - ["id", "name"] = returns only specified fields (RECOMMENDED)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
 
                 Examples:
-                - For counting: ["id"] (minimal payload)
-                - For listings: ["id", "name", "status"]
-                - For IP addresses: ["address", "dns_name", "description"]
+                - For counting: ['id'] (minimal payload)
+                - For listings: ['id', 'name', 'status']
+                - For IP addresses: ['address', 'dns_name', 'description']
 
                 Uses NetBox's native field filtering via ?fields= parameter.
                 **Always specify only the fields you actually need.**
@@ -320,14 +325,12 @@ _NETBOX_GET_OBJECTS_DESCRIPTION = (
 
         ordering: Fields used to determine sort order of results.
                   Field names may be prefixed with '-' to invert the sort order.
-                  Multiple fields may be specified with a list of strings or a
-                  comma-separated string.
+                  Multiple fields may be specified with a list of strings.
 
                   Examples:
                   - 'name' (alphabetical by name)
                   - '-id' (ordered by ID descending)
                   - ['facility', '-name'] (by facility, then by name descending)
-                  - 'facility,-name' (same as above, comma-separated form)
                   - None, '' or [] (default NetBox ordering)
 
 
@@ -357,18 +360,20 @@ _NETBOX_GET_OBJECTS_DESCRIPTION = (
 
 def netbox_get_objects(
     object_type: str,
-    filters: dict[str, Any] | None = None,
+    filters: dict,
     fields: list[str] | None = None,
     brief: bool = False,
-    limit: Annotated[int, Field(ge=1, le=100)] = 5,
-    offset: Annotated[int, Field(ge=0)] = 0,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+    offset: Annotated[int, Field(default=0, ge=0)] = 0,
     ordering: str | list[str] | None = None,
 ) -> Any:
-    """Strict-mode wrapper (default). Takes native Python types."""
-    ordering_str = ",".join(ordering) if isinstance(ordering, list) else ordering or ""
+    """
+    Get objects from NetBox based on their type and filters
+    """
+    ordering_str = ",".join(ordering) if isinstance(ordering, list) else (ordering or "")
     return _netbox_get_objects_impl(
         object_type=object_type,
-        filters=filters or {},
+        filters=filters,
         fields=fields or [],
         brief=brief,
         limit=limit,
@@ -384,10 +389,12 @@ def _netbox_get_object_by_id_impl(
     brief: bool,
 ) -> Any:
     """Shared business logic for netbox_get_object_by_id. Takes native types."""
+    # Validate object_type exists in mapping
     if object_type not in NETBOX_OBJECT_TYPES:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
+    # Get API endpoint and fallback from mapping
     endpoint, fallback = _get_endpoint_info(object_type)
     full_endpoint = f"{endpoint}/{object_id}"
     full_fallback = f"{fallback}/{object_id}" if fallback else None
@@ -408,15 +415,28 @@ def netbox_get_object_by_id(
     fields: list[str] | None = None,
     brief: bool = False,
 ) -> Any:
-    """Strict-mode wrapper for netbox_get_object_by_id.
-
+    """
     Get detailed information about a specific NetBox object by its ID.
 
     Args:
-        object_type: String representing the NetBox object type (e.g. "dcim.device")
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
         object_id: The numeric ID of the object
-        fields: List of specific fields to return (e.g. ["id", "name", "status"])
-        brief: Return only a minimal representation
+        fields: Optional list of specific fields to return
+                **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
+                Field filtering reduces response payload by 80-90% and is critical for performance.
+
+                - None or [] = returns all fields (NOT RECOMMENDED - use only when you need complete objects)
+                - ['id', 'name'] = returns only specified fields (RECOMMENDED)
+
+                Examples:
+                - For basic info: ['id', 'name', 'status']
+                - For devices: ['id', 'name', 'status', 'site']
+                - For IP addresses: ['address', 'dns_name', 'vrf', 'status']
+
+                Uses NetBox's native field filtering via ?fields= parameter.
+                **Always specify only the fields you actually need.**
+        brief: returns only a minimal representation of the object in the response.
+               This is useful when you need only a summary of the object without any related data.
 
     Returns:
         Object dict (complete or with only requested fields based on fields parameter)
@@ -436,6 +456,7 @@ def _netbox_get_changelogs_impl(filters: dict[str, Any]) -> Any:
     Called from both strict and compat tool wrappers. No schema concerns; no
     parsing; no string handling.
     """
+    # Make API call
     return netbox.get("core/object-changes", params=filters)
 
 
@@ -495,9 +516,62 @@ _NETBOX_GET_CHANGELOGS_DESCRIPTION = """
     """
 
 
-def netbox_get_changelogs(filters: dict[str, Any] | None = None) -> Any:
-    """Strict-mode wrapper for netbox_get_changelogs. See tool description."""
-    return _netbox_get_changelogs_impl(filters or {})
+def netbox_get_changelogs(filters: dict) -> Any:
+    """
+    Get object change records (changelogs) from NetBox based on filters.
+
+    Args:
+        filters: dict of filters to apply to the API call based on the NetBox API filtering options
+
+    Returns:
+        Paginated response dict with the following structure:
+            - count: Total number of changelog entries matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of changelog entries for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
+
+    Filtering options include:
+    - user_id: Filter by user ID who made the change
+    - user: Filter by username who made the change
+    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
+                              Note: This expects a numeric ID, not an object type string
+    - changed_object_id: Filter by ID of the changed object
+    - object_repr: Filter by object representation (usually contains object name)
+    - action: Filter by action type (created, updated, deleted)
+    - time_before: Filter for changes made before a given time (ISO 8601 format)
+    - time_after: Filter for changes made after a given time (ISO 8601 format)
+    - q: Search term to filter by object representation
+
+    Examples:
+    To find all changes made to a specific object by ID:
+    {"changed_object_id": 123}
+
+    To find changes by object name pattern:
+    {"object_repr": "router-01"}
+
+    To find all deletions in the last 24 hours:
+    {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
+
+    Each changelog entry contains:
+    - id: The unique identifier of the changelog entry
+    - user: The user who made the change
+    - user_name: The username of the user who made the change
+    - request_id: The unique identifier of the request that made the change
+    - action: The type of action performed (created, updated, deleted)
+    - changed_object_type: The type of object that was changed
+    - changed_object_id: The ID of the object that was changed
+    - object_repr: String representation of the changed object
+    - object_data: The object's data after the change (null for deletions)
+    - object_data_v2: Enhanced data representation
+    - prechange_data: The object's data before the change (null for creations)
+    - postchange_data: The object's data after the change (null for deletions)
+    - time: The timestamp when the change was made
+    """
+    return _netbox_get_changelogs_impl(filters)
 
 
 def _netbox_search_objects_impl(
@@ -509,6 +583,7 @@ def _netbox_search_objects_impl(
     """Shared business logic for netbox_search_objects. Takes native types."""
     search_types = object_types or DEFAULT_SEARCH_TYPES
 
+    # Validate all object types exist in mapping
     for obj_type in search_types:
         if obj_type not in NETBOX_OBJECT_TYPES:
             valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
@@ -516,6 +591,7 @@ def _netbox_search_objects_impl(
 
     results: dict[str, list[dict[str, Any]]] = {obj_type: [] for obj_type in search_types}
 
+    # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
             endpoint, fallback = _get_endpoint_info(obj_type)
@@ -528,8 +604,11 @@ def _netbox_search_objects_impl(
                 },
                 fallback_endpoint=fallback,
             )
+            # Extract results array from paginated response
             results[obj_type] = response.get("results", [])
         except Exception:  # noqa: S112 - intentional error-resilient search
+            # Continue searching other types if one fails
+            # results[obj_type] already has empty list
             continue
 
     return results
@@ -545,17 +624,44 @@ _NETBOX_SEARCH_OBJECTS_DESCRIPTION = (
     Args:
         query: Search term (device names, IPs, serial numbers, hostnames, site names)
                Examples: 'switch01', '192.168.1.1', 'NYC-DC1', 'SN123456'
-        object_types: List of types to search (optional)
-                     Default: """
-    + ",".join(DEFAULT_SEARCH_TYPES)
-    + """
+        object_types: Limit search to specific types (optional)
+                     Default: ["""
+    + "', '".join(DEFAULT_SEARCH_TYPES)
+    + """]
                      Examples: ['dcim.device', 'ipam.ipaddress', 'dcim.site']
-        fields: List of specific fields to return (reduces response size)
+        fields: Optional list of specific fields to return (reduces response size) IT IS STRONGLY RECOMMENDED TO USE THIS PARAMETER TO MINIMIZE TOKEN USAGE.
+                - None or [] = returns all fields (no filtering)
+                - ['id', 'name'] = returns only specified fields
                 Examples: ['id', 'name', 'status'], ['address', 'dns_name']
+                Uses NetBox's native field filtering via ?fields= parameter
         limit: Max results per object type (default 5, max 100)
 
     Returns:
         Dictionary with object_type keys and list of matching objects.
+        All searched types present in result (empty list if no matches).
+
+    Example:
+        # Search for anything matching "switch"
+        results = netbox_search_objects('switch')
+        # Returns: {
+        #   'dcim.device': [{'id': 1, 'name': 'switch-01', ...}],
+        #   'dcim.site': [],
+        #   ...
+        # }
+
+        # Search for IP address
+        results = netbox_search_objects('192.168.1.100')
+        # Returns: {
+        #   'ipam.ipaddress': [{'id': 42, 'address': '192.168.1.100/24', ...}],
+        #   ...
+        # }
+
+        # Limit search to specific types with field projection
+        results = netbox_search_objects(
+            'NYC',
+            object_types=['dcim.site', 'dcim.location'],
+            fields=['id', 'name', 'status']
+        )
     """
 )
 
@@ -564,9 +670,11 @@ def netbox_search_objects(
     query: str,
     object_types: list[str] | None = None,
     fields: list[str] | None = None,
-    limit: Annotated[int, Field(ge=1, le=100)] = 5,
-) -> dict[str, list[dict[str, Any]]]:
-    """Strict-mode wrapper for netbox_search_objects."""
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+) -> dict[str, list[dict]]:
+    """
+    Perform global search across NetBox infrastructure.
+    """
     return _netbox_search_objects_impl(
         query=query,
         object_types=object_types or [],
