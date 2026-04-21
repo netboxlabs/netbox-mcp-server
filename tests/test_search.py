@@ -249,3 +249,28 @@ def test_extracts_results_from_paginated_response(mock_netbox):
         {"id": 1, "name": "device01"},
         {"id": 2, "name": "device02"},
     ]
+
+
+@patch("netbox_mcp_server.server.netbox")
+def test_search_objects_strict_mode_accepts_lists(mock_netbox):
+    """Strict-mode netbox_search_objects accepts native list[str] for object_types and fields."""
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
+
+    result = netbox_search_objects(
+        query="nyc",
+        object_types=["dcim.site"],
+        fields=["id", "name"],
+        limit=3,
+    )
+
+    assert isinstance(result, dict)
+    assert "dcim.site" in result
+    call_params = mock_netbox.get.call_args[1]["params"]
+    assert call_params["q"] == "nyc"
+    assert call_params["limit"] == 3
+    assert call_params["fields"] == "id,name"

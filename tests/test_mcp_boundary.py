@@ -5,10 +5,9 @@ bypassing Pydantic's schema enforcement. The tests in this file go through
 ``Client.call_tool``, which is the path every real MCP client takes — the
 schema is enforced.
 
-The tests here exercise *compat-mode* behavior: the string-typed tool schemas
-n8n's MCP client requires. Strict-mode boundary coverage lives in Task 4's
-additions (see ``test_impl_parity.py`` and the strict-mode section below
-once added).
+Both modes are exercised: the compat-mode tests verify n8n's string-typed
+schema still works when ``n8n_compat=True``, and the strict-mode tests
+(default) verify that LLM clients can use native JSON types.
 """
 
 import asyncio
@@ -24,6 +23,12 @@ EMPTY_RESPONSE = {"count": 0, "next": None, "previous": None, "results": []}
 
 async def _call_compat(tool_name: str, arguments: dict):
     mcp = create_mcp(n8n_compat=True)
+    async with Client(mcp) as client:
+        return await client.call_tool(tool_name, arguments)
+
+
+async def _call_strict(tool_name: str, arguments: dict):
+    mcp = create_mcp(n8n_compat=False)
     async with Client(mcp) as client:
         return await client.call_tool(tool_name, arguments)
 
@@ -89,3 +94,64 @@ def test_integer_object_id_accepted_through_mcp_boundary():
         )
         called_endpoint = mock.get.call_args[0][0]
         assert called_endpoint.endswith("/42")
+
+
+# ===== Strict-mode (default) boundary tests =====
+
+
+def test_strict_dict_filters_accepted_through_mcp_boundary():
+    """Strict mode: clients may send native JSON objects as filters."""
+    with patch("netbox_mcp_server.server.netbox") as mock:
+        mock.get.return_value = EMPTY_RESPONSE
+        asyncio.run(
+            _call_strict(
+                "netbox_get_objects",
+                {"object_type": "dcim.site", "filters": {"status": "active"}},
+            )
+        )
+        params = mock.get.call_args[1]["params"]
+        assert params["status"] == "active"
+
+
+def test_strict_list_fields_accepted_through_mcp_boundary():
+    """Strict mode: clients may send native arrays for fields."""
+    with patch("netbox_mcp_server.server.netbox") as mock:
+        mock.get.return_value = EMPTY_RESPONSE
+        asyncio.run(
+            _call_strict(
+                "netbox_get_objects",
+                {
+                    "object_type": "dcim.site",
+                    "filters": {},
+                    "fields": ["id", "name"],
+                },
+            )
+        )
+        params = mock.get.call_args[1]["params"]
+        assert params["fields"] == "id,name"
+
+
+def test_strict_integer_limit_accepted():
+    """Strict mode: clients may send native integers for limit."""
+    with patch("netbox_mcp_server.server.netbox") as mock:
+        mock.get.return_value = EMPTY_RESPONSE
+        asyncio.run(
+            _call_strict(
+                "netbox_get_objects",
+                {"object_type": "dcim.site", "filters": {}, "limit": 10},
+            )
+        )
+        assert mock.get.call_args[1]["params"]["limit"] == 10
+
+
+def test_strict_string_filters_rejected_through_mcp_boundary():
+    """Strict mode: passing a JSON string as filters is rejected at the schema boundary."""
+    with patch("netbox_mcp_server.server.netbox") as mock:
+        mock.get.return_value = EMPTY_RESPONSE
+        with pytest.raises(Exception, match=r"valid dictionary"):
+            asyncio.run(
+                _call_strict(
+                    "netbox_get_objects",
+                    {"object_type": "dcim.site", "filters": '{"status": "active"}'},
+                )
+            )
