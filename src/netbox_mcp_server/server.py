@@ -221,6 +221,44 @@ def validate_filters(filters: dict[str, Any]) -> None:
             )
 
 
+def _netbox_get_objects_impl(
+    object_type: str,
+    filters: dict[str, Any],
+    fields: list[str],
+    brief: bool,
+    limit: int,
+    offset: int,
+    ordering: str = "",
+) -> Any:
+    """Shared business logic for netbox_get_objects. Takes native Python types.
+
+    Called from both strict and compat tool wrappers. No schema concerns; no
+    parsing; no string handling.
+    """
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    validate_filters(filters)
+
+    endpoint, fallback = _get_endpoint_info(object_type)
+
+    params = filters.copy()
+    params["limit"] = limit
+    params["offset"] = offset
+
+    if fields:
+        params["fields"] = ",".join(fields)
+
+    if brief:
+        params["brief"] = "1"
+
+    if ordering and ordering.strip():
+        params["ordering"] = ordering
+
+    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
+
+
 @mcp.tool(
     description="""
     Get objects from NetBox based on their type and filters
@@ -312,38 +350,43 @@ def netbox_get_objects(
     """
     Get objects from NetBox based on their type and filters
     """
-    # Validate object_type exists in mapping
+    filters_dict = _parse_filters(filters)
+    fields_list = _parse_list_param(fields)
+
+    return _netbox_get_objects_impl(
+        object_type=object_type,
+        filters=filters_dict,
+        fields=fields_list,
+        brief=brief,
+        limit=int(limit),
+        offset=int(offset),
+        ordering=ordering,
+    )
+
+
+def _netbox_get_object_by_id_impl(
+    object_type: str,
+    object_id: int,
+    fields: list[str],
+    brief: bool,
+) -> Any:
+    """Shared business logic for netbox_get_object_by_id. Takes native types."""
     if object_type not in NETBOX_OBJECT_TYPES:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
 
-    # Parse parameters - accept both string (n8n) and native types (Claude) for backward compatibility
-    filters_dict = _parse_filters(filters)
-    fields_list = _parse_list_param(fields)
-
-    # Validate filter patterns
-    validate_filters(filters_dict)
-
-    # Get API endpoint and fallback from mapping
     endpoint, fallback = _get_endpoint_info(object_type)
+    full_endpoint = f"{endpoint}/{object_id}"
+    full_fallback = f"{fallback}/{object_id}" if fallback else None
 
-    # Build params with pagination (parameters override filters dict)
-    # Convert float to int for NetBox API compatibility
-    params = filters_dict.copy()
-    params["limit"] = int(limit)
-    params["offset"] = int(offset)
-
-    if fields_list:
-        params["fields"] = ",".join(fields_list)
+    params: dict[str, Any] = {}
+    if fields:
+        params["fields"] = ",".join(fields)
 
     if brief:
         params["brief"] = "1"
 
-    if ordering and ordering.strip():
-        params["ordering"] = ordering
-
-    # Make API call
-    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
+    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
 @mcp.tool
@@ -381,28 +424,22 @@ def netbox_get_object_by_id(
     Returns:
         Object dict (complete or with only requested fields based on fields parameter)
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-
-    # Parse fields - accept both string (n8n) and list (Claude) for backward compatibility
     fields_list = _parse_list_param(fields)
+    return _netbox_get_object_by_id_impl(
+        object_type=object_type,
+        object_id=int(object_id),
+        fields=fields_list,
+        brief=brief,
+    )
 
-    # Get API endpoint and fallback from mapping
-    # Convert float to int for NetBox API compatibility
-    endpoint, fallback = _get_endpoint_info(object_type)
-    full_endpoint = f"{endpoint}/{int(object_id)}"
-    full_fallback = f"{fallback}/{int(object_id)}" if fallback else None
 
-    params = {}
-    if fields_list:
-        params["fields"] = ",".join(fields_list)
+def _netbox_get_changelogs_impl(filters: dict[str, Any]) -> Any:
+    """Shared business logic for netbox_get_changelogs. Takes native Python types.
 
-    if brief:
-        params["brief"] = "1"
-
-    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
+    Called from both strict and compat tool wrappers. No schema concerns; no
+    parsing; no string handling.
+    """
+    return netbox.get("core/object-changes", params=filters)
 
 
 @mcp.tool
@@ -461,13 +498,43 @@ def netbox_get_changelogs(filters: str = "{}"):
     - postchange_data: The object's data after the change (null for deletions)
     - time: The timestamp when the change was made
     """
-    # Parse filters - accept both string (n8n) and dict (Claude) for backward compatibility
     filters_dict = _parse_filters(filters)
+    return _netbox_get_changelogs_impl(filters_dict)
 
-    endpoint = "core/object-changes"
 
-    # Make API call
-    return netbox.get(endpoint, params=filters_dict)
+def _netbox_search_objects_impl(
+    query: str,
+    object_types: list[str],
+    fields: list[str],
+    limit: int,
+) -> dict[str, list[dict[str, Any]]]:
+    """Shared business logic for netbox_search_objects. Takes native types."""
+    search_types = object_types or DEFAULT_SEARCH_TYPES
+
+    for obj_type in search_types:
+        if obj_type not in NETBOX_OBJECT_TYPES:
+            valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+            raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
+
+    results: dict[str, list[dict[str, Any]]] = {obj_type: [] for obj_type in search_types}
+
+    for obj_type in search_types:
+        try:
+            endpoint, fallback = _get_endpoint_info(obj_type)
+            response = netbox.get(
+                endpoint,
+                params={
+                    "q": query,
+                    "limit": limit,
+                    "fields": ",".join(fields) if fields else None,
+                },
+                fallback_endpoint=fallback,
+            )
+            results[obj_type] = response.get("results", [])
+        except Exception:  # noqa: S112 - intentional error-resilient search
+            continue
+
+    return results
 
 
 @mcp.tool(
@@ -531,39 +598,14 @@ def netbox_search_objects(
     """
     Perform global search across NetBox infrastructure.
     """
-    # Parse parameters - accept both string (n8n) and list (Claude) for backward compatibility
-    search_types = _parse_list_param(object_types) or DEFAULT_SEARCH_TYPES
+    search_types = _parse_list_param(object_types)
     fields_list = _parse_list_param(fields)
-
-    # Validate all object types exist in mapping
-    for obj_type in search_types:
-        if obj_type not in NETBOX_OBJECT_TYPES:
-            valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-            raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
-
-    results = {obj_type: [] for obj_type in search_types}
-
-    # Build results dictionary (error-resilient)
-    for obj_type in search_types:
-        try:
-            endpoint, fallback = _get_endpoint_info(obj_type)
-            response = netbox.get(
-                endpoint,
-                params={
-                    "q": query,
-                    "limit": int(limit),
-                    "fields": ",".join(fields_list) if fields_list else None,
-                },
-                fallback_endpoint=fallback,
-            )
-            # Extract results array from paginated response
-            results[obj_type] = response.get("results", [])
-        except Exception:  # noqa: S112 - intentional error-resilient search
-            # Continue searching other types if one fails
-            # results[obj_type] already has empty list
-            continue
-
-    return results
+    return _netbox_search_objects_impl(
+        query=query,
+        object_types=search_types,
+        fields=fields_list,
+        limit=int(limit),
+    )
 
 
 def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
