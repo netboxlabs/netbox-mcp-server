@@ -554,7 +554,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
         limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
         offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
         ordering: str = "",
-    ):
+    ) -> Any:
         """n8n-compat wrapper. Parses strings to native types, calls impl."""
         return _netbox_get_objects_impl(
             object_type=object_type,
@@ -572,7 +572,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
         object_id: float,
         fields: str = "",
         brief: bool = False,
-    ):
+    ) -> Any:
         """n8n-compat wrapper for netbox_get_object_by_id."""
         return _netbox_get_object_by_id_impl(
             object_type=object_type,
@@ -582,7 +582,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool()
-    def netbox_get_changelogs(filters: str = "{}"):
+    def netbox_get_changelogs(filters: str = "{}") -> Any:
         """n8n-compat wrapper for netbox_get_changelogs."""
         return _netbox_get_changelogs_impl(_parse_filters(filters))
 
