@@ -4,7 +4,7 @@ import logging
 import logging.config
 from typing import Any, Literal
 
-from pydantic import AnyUrl, SecretStr, field_validator, model_validator
+from pydantic import AnyUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +42,18 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     """Logging verbosity level"""
 
+    # ===== n8n Compatibility =====
+    n8n_compat: bool = Field(
+        default=False,
+        validation_alias="NETBOX_MCP_N8N_COMPAT",
+        description=(
+            "Enable n8n AI Agent MCP client compatibility. Exposes tool "
+            "parameters as strings instead of native JSON Schema types "
+            "(integer/array/object). Required when connecting from n8n. "
+            "See n8n-io/n8n#20682."
+        ),
+    )
+
     # ===== Pydantic Configuration =====
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -71,6 +83,24 @@ class Settings(BaseSettings):
             )
         return v
 
+    @model_validator(mode="before")
+    @classmethod
+    def _map_n8n_compat_field_name(cls, values: Any) -> Any:
+        """Allow direct construction with n8n_compat= kwarg despite validation_alias.
+
+        pydantic-settings resolves env vars via the alias, but direct Python
+        callers (tests, library users) may pass n8n_compat= by field name.
+        This validator remaps the field name to the alias before validation
+        so both styles work without exposing N8N_COMPAT as an accepted env var.
+        """
+        if (
+            isinstance(values, dict)
+            and "n8n_compat" in values
+            and "NETBOX_MCP_N8N_COMPAT" not in values
+        ):
+            values["NETBOX_MCP_N8N_COMPAT"] = values.pop("n8n_compat")
+        return values
+
     @model_validator(mode="after")
     def validate_http_transport_requirements(self) -> "Settings":
         """No additional validation needed for HTTP transport; defaults are appropriate."""
@@ -91,6 +121,7 @@ class Settings(BaseSettings):
             "port": self.port if self.transport == "http" else "N/A",
             "verify_ssl": self.verify_ssl,
             "log_level": self.log_level,
+            "n8n_compat": self.n8n_compat,
         }
 
 

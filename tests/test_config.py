@@ -90,6 +90,85 @@ def test_parse_cli_args_multiple():
         sys.argv = original_argv
 
 
+# ===== n8n Compatibility Flag Tests =====
+
+
+def test_settings_n8n_compat_defaults_false():
+    """Default value of n8n_compat is False (strict types are default)."""
+    settings = Settings(
+        netbox_url="https://netbox.example.com/",
+        netbox_token="test-token",
+        _env_file=None,
+    )
+    assert settings.n8n_compat is False
+
+
+def test_settings_n8n_compat_from_env():
+    """NETBOX_MCP_N8N_COMPAT=true env var enables compat mode."""
+    with patch.dict(
+        "os.environ",
+        {
+            "NETBOX_URL": "https://netbox.example.com/",
+            "NETBOX_TOKEN": "test-token",
+            "NETBOX_MCP_N8N_COMPAT": "true",
+        },
+        clear=True,
+    ):
+        settings = Settings(_env_file=None)
+        assert settings.n8n_compat is True
+
+
+def test_settings_n8n_compat_not_set_by_bare_env_var():
+    """Bare N8N_COMPAT env var is NOT recognised — only the prefixed form.
+
+    We intentionally do not accept a bare-name alias to avoid namespace
+    collisions in multi-service deploys.
+    """
+    with patch.dict(
+        "os.environ",
+        {
+            "NETBOX_URL": "https://netbox.example.com/",
+            "NETBOX_TOKEN": "test-token",
+            "N8N_COMPAT": "true",
+        },
+        clear=True,
+    ):
+        settings = Settings(_env_file=None)
+        assert settings.n8n_compat is False
+
+
+def test_settings_n8n_compat_appears_in_summary():
+    """get_effective_config_summary includes n8n_compat so it's logged at startup."""
+    settings = Settings(
+        netbox_url="https://netbox.example.com/",
+        netbox_token="test-token",
+        n8n_compat=True,
+    )
+    assert settings.get_effective_config_summary()["n8n_compat"] is True
+
+
+def test_parse_cli_args_n8n_compat_flag():
+    """--n8n-compat CLI flag is captured in the overlay."""
+    original_argv = sys.argv
+    try:
+        sys.argv = ["server.py", "--n8n-compat"]
+        result = parse_cli_args()
+        assert result["n8n_compat"] is True
+    finally:
+        sys.argv = original_argv
+
+
+def test_parse_cli_args_n8n_compat_default_absent():
+    """Without --n8n-compat, the key is absent from the overlay."""
+    original_argv = sys.argv
+    try:
+        sys.argv = ["server.py"]
+        result = parse_cli_args()
+        assert "n8n_compat" not in result
+    finally:
+        sys.argv = original_argv
+
+
 # ===== Logging Configuration Tests =====
 
 
