@@ -171,6 +171,7 @@ The server supports multiple configuration sources with the following precedence
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
+| `NETBOX_MCP_N8N_COMPAT` | Boolean | `false` | No | Enable n8n AI Agent MCP client compatibility mode (string-typed parameters). See [n8n Compatibility Mode](#n8n-compatibility-mode). |
 
 ### Transport Examples
 
@@ -250,6 +251,37 @@ uv run netbox-mcp-server --help
 uv run netbox-mcp-server --log-level DEBUG --no-verify-ssl  # Development
 uv run netbox-mcp-server --transport http --port 9000       # Custom HTTP port
 ```
+
+### n8n Compatibility Mode
+
+The n8n AI Agent MCP client does not currently support JSON Schema
+`integer`, `array`, or `object` parameter types — it has a hardcoded
+type-mapping table covering only `string`, `number`, `boolean`, and
+`json`. If you're connecting this server from n8n, enable compatibility
+mode:
+
+```bash
+# Via environment variable
+NETBOX_MCP_N8N_COMPAT=true uv run netbox-mcp-server
+
+# Or via CLI flag
+uv run netbox-mcp-server --n8n-compat
+```
+
+In compat mode:
+
+- `filters` is a JSON string (e.g. `'{"site_id": 1}'`) instead of an object
+- `fields`, `ordering`, and `object_types` are comma-separated strings instead of arrays
+- `limit`, `offset`, and `object_id` are `number` instead of `integer`
+
+**Upstream tracking:** A [community PR][n8n-pr] proposes the fix but has
+been unreviewed since October 2025. This flag will be removed once that
+fix (or equivalent) ships in an n8n release. See the relevant upstream
+reports: [n8n#19835][n8n-19835], [n8n#21569][n8n-21569].
+
+[n8n-pr]: https://github.com/n8n-io/n8n/pull/20682
+[n8n-19835]: https://github.com/n8n-io/n8n/issues/19835
+[n8n-21569]: https://github.com/n8n-io/n8n/issues/21569
 
 ## Docker Usage
 
