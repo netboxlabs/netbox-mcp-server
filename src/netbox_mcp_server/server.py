@@ -77,6 +77,16 @@ def parse_cli_args() -> dict[str, Any]:
         help="Logging verbosity level (default: INFO)",
     )
 
+    # n8n compatibility
+    parser.add_argument(
+        "--n8n-compat",
+        action="store_true",
+        dest="n8n_compat",
+        default=None,
+        help="Enable n8n AI Agent MCP client compatibility mode "
+        "(string-typed tool parameters). See README.",
+    )
+
     args: argparse.Namespace = parser.parse_args()
 
     overlay: dict[str, Any] = {}
@@ -94,6 +104,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["verify_ssl"] = args.verify_ssl
     if args.log_level is not None:
         overlay["log_level"] = args.log_level
+    if args.n8n_compat is not None:
+        overlay["n8n_compat"] = args.n8n_compat
 
     return overlay
 
