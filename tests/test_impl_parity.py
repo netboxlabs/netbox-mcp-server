@@ -39,11 +39,6 @@ async def _call(mcp, tool_name: str, arguments: dict):
             {"object_type": "dcim.site", "filters": {}, "fields": ["id", "name"]},
             {"object_type": "dcim.site", "filters": "{}", "fields": "id,name"},
         ),
-        # ordering: string in both modes (sanity — should be identical)
-        (
-            {"object_type": "dcim.site", "filters": {}, "ordering": "facility,-name"},
-            {"object_type": "dcim.site", "filters": "{}", "ordering": "facility,-name"},
-        ),
         # n8n-style empty filter string: "null" in compat = {} in strict
         (
             {"object_type": "dcim.site", "filters": {}},

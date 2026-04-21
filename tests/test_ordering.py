@@ -117,6 +117,25 @@ def test_ordering_multiple_fields_comma_separated(mock_netbox):
 
 
 @patch("netbox_mcp_server.server.netbox")
+def test_ordering_list_joined_comma_separated(mock_netbox):
+    """List of strings should be joined with commas before being sent to the API.
+
+    Restores the pre-#61 contract: callers may pass ordering as a list.
+    """
+    mock_netbox.get.return_value = {
+        "count": 0,
+        "results": [],
+        "next": None,
+        "previous": None,
+    }
+
+    netbox_get_objects(object_type="dcim.site", filters={}, ordering=["facility", "-name"])
+
+    params = mock_netbox.get.call_args[1]["params"]
+    assert params["ordering"] == "facility,-name"
+
+
+@patch("netbox_mcp_server.server.netbox")
 def test_ordering_whitespace_only_omits_parameter(mock_netbox):
     """When ordering contains only whitespace, should not include ordering in API params."""
     mock_netbox.get.return_value = {

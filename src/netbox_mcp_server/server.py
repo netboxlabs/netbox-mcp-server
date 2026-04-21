@@ -292,7 +292,7 @@ _NETBOX_GET_OBJECTS_DESCRIPTION = (
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {"name": "NYC"})
-                  netbox_get_objects('dcim.device', {"site_id": 1})
+                  netbox_get_objects('dcim.device', {"site_id": sites[0]['id']})
 
         fields: List of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
@@ -310,23 +310,39 @@ _NETBOX_GET_OBJECTS_DESCRIPTION = (
                 **Always specify only the fields you actually need.**
 
         brief: returns only a minimal representation of each object in the response.
+               This is useful when you need only a list of available objects without any related data.
 
         limit: Maximum results to return (default 5, max 100)
+               Start with default, increase only if needed
 
         offset: Skip this many results for pagination (default 0)
+                Example: offset=0 (page 1), offset=5 (page 2), offset=10 (page 3)
 
         ordering: Fields used to determine sort order of results.
                   Field names may be prefixed with '-' to invert the sort order.
-                  Use comma-separated string for multiple fields.
+                  Multiple fields may be specified with a list of strings or a
+                  comma-separated string.
 
                   Examples:
                   - 'name' (alphabetical by name)
                   - '-id' (ordered by ID descending)
-                  - 'facility,-name' (by facility, then by name descending)
+                  - ['facility', '-name'] (by facility, then by name descending)
+                  - 'facility,-name' (same as above, comma-separated form)
+                  - None, '' or [] (default NetBox ordering)
 
 
     Returns:
-        Paginated response dict with count / next / previous / results.
+        Paginated response dict with the following structure:
+            - count: Total number of objects matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF OBJECTS MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of objects for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE OBJECTS ON THIS PAGE
+
+    ENSURE YOU ARE AWARE THE RESULTS ARE PAGINATED BEFORE PROVIDING RESPONSE TO THE USER.
 
     Valid object_type values:
 
@@ -346,9 +362,10 @@ def netbox_get_objects(
     brief: bool = False,
     limit: Annotated[int, Field(ge=1, le=100)] = 5,
     offset: Annotated[int, Field(ge=0)] = 0,
-    ordering: str = "",
+    ordering: str | list[str] | None = None,
 ) -> Any:
     """Strict-mode wrapper (default). Takes native Python types."""
+    ordering_str = ",".join(ordering) if isinstance(ordering, list) else ordering or ""
     return _netbox_get_objects_impl(
         object_type=object_type,
         filters=filters or {},
@@ -356,7 +373,7 @@ def netbox_get_objects(
         brief=brief,
         limit=limit,
         offset=offset,
-        ordering=ordering,
+        ordering=ordering_str,
     )
 
 
@@ -422,17 +439,64 @@ def _netbox_get_changelogs_impl(filters: dict[str, Any]) -> Any:
     return netbox.get("core/object-changes", params=filters)
 
 
-def netbox_get_changelogs(filters: dict[str, Any] | None = None) -> Any:
-    """Strict-mode wrapper for netbox_get_changelogs.
-
+_NETBOX_GET_CHANGELOGS_DESCRIPTION = """
     Get object change records (changelogs) from NetBox based on filters.
 
     Args:
-        filters: Dict of filters to apply to the API call.
+        filters: dict of filters to apply to the API call based on the NetBox API filtering options
 
     Returns:
-        Paginated response dict.
+        Paginated response dict with the following structure:
+            - count: Total number of changelog entries matching the query
+                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
+            - next: URL to next page (or null if no more pages)
+                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
+            - previous: URL to previous page (or null if on first page)
+                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
+            - results: Array of changelog entries for this page
+                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
+
+    Filtering options include:
+    - user_id: Filter by user ID who made the change
+    - user: Filter by username who made the change
+    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
+                              Note: This expects a numeric ID, not an object type string
+    - changed_object_id: Filter by ID of the changed object
+    - object_repr: Filter by object representation (usually contains object name)
+    - action: Filter by action type (created, updated, deleted)
+    - time_before: Filter for changes made before a given time (ISO 8601 format)
+    - time_after: Filter for changes made after a given time (ISO 8601 format)
+    - q: Search term to filter by object representation
+
+    Examples:
+    To find all changes made to a specific object by ID:
+    {"changed_object_id": 123}
+
+    To find changes by object name pattern:
+    {"object_repr": "router-01"}
+
+    To find all deletions in the last 24 hours:
+    {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
+
+    Each changelog entry contains:
+    - id: The unique identifier of the changelog entry
+    - user: The user who made the change
+    - user_name: The username of the user who made the change
+    - request_id: The unique identifier of the request that made the change
+    - action: The type of action performed (created, updated, deleted)
+    - changed_object_type: The type of object that was changed
+    - changed_object_id: The ID of the object that was changed
+    - object_repr: String representation of the changed object
+    - object_data: The object's data after the change (null for deletions)
+    - object_data_v2: Enhanced data representation
+    - prechange_data: The object's data before the change (null for creations)
+    - postchange_data: The object's data after the change (null for deletions)
+    - time: The timestamp when the change was made
     """
+
+
+def netbox_get_changelogs(filters: dict[str, Any] | None = None) -> Any:
+    """Strict-mode wrapper for netbox_get_changelogs. See tool description."""
     return _netbox_get_changelogs_impl(filters or {})
 
 
@@ -533,7 +597,7 @@ def _register_strict_tools(mcp: FastMCP) -> None:
     """Register strict-typed tools (native int/list/dict). Default mode."""
     mcp.tool(description=_NETBOX_GET_OBJECTS_DESCRIPTION)(netbox_get_objects)
     mcp.tool()(netbox_get_object_by_id)
-    mcp.tool()(netbox_get_changelogs)
+    mcp.tool(description=_NETBOX_GET_CHANGELOGS_DESCRIPTION)(netbox_get_changelogs)
     mcp.tool(description=_NETBOX_SEARCH_OBJECTS_DESCRIPTION)(netbox_search_objects)
 
 
@@ -581,7 +645,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
             brief=brief,
         )
 
-    @mcp.tool()
+    @mcp.tool(description=_NETBOX_GET_CHANGELOGS_DESCRIPTION)
     def netbox_get_changelogs(filters: str = "{}") -> Any:
         """n8n-compat wrapper for netbox_get_changelogs."""
         return _netbox_get_changelogs_impl(_parse_filters(filters))
