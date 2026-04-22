@@ -253,6 +253,30 @@ uv run netbox-mcp-server --transport http --port 9000       # Custom HTTP port
 
 ## Docker Usage
 
+### Pre-built Image (GitHub Container Registry)
+
+Pre-built multi-arch images (`linux/amd64`, `linux/arm64`) are published to GHCR on every push to `main` and on tagged releases:
+
+```bash
+docker pull ghcr.io/netboxlabs/netbox-mcp-server:latest
+```
+
+**Pin to a specific version in production.** The `latest` tag tracks the default branch and can change without notice:
+
+```bash
+docker pull ghcr.io/netboxlabs/netbox-mcp-server:1.0.0   # exact version
+docker pull ghcr.io/netboxlabs/netbox-mcp-server:1.0     # pinned to 1.0.x
+```
+
+**Verify image provenance (optional but recommended).** Images are signed with [cosign](https://github.com/sigstore/cosign) (keyless, via GitHub OIDC) and ship with SLSA build provenance:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp '^https://github.com/netboxlabs/netbox-mcp-server/' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  ghcr.io/netboxlabs/netbox-mcp-server:<tag>
+```
+
 ### Standard Docker Image
 
 Build and run the NetBox MCP server in a container:
