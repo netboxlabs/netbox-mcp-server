@@ -34,6 +34,23 @@ class TestParseFilters:
         with pytest.raises(ValueError, match="Invalid filters JSON"):
             _parse_filters("not valid json")
 
+    @pytest.mark.parametrize(
+        "value",
+        ['"hello"', "42", "3.14", "true", "[1, 2, 3]"],
+    )
+    def test_rejects_non_dict_json(self, value):
+        """Should raise ValueError when parsed JSON is valid but not a dict.
+
+        Regression guard: json.loads('"hello"') returns the string "hello",
+        which is valid JSON but would crash the impl's filters.copy() call.
+        The error surfaces the mismatch at the boundary instead.
+
+        Note: 'null' is handled upstream via _is_empty_string → {} before
+        json.loads runs, so it isn't part of this parameter set.
+        """
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            _parse_filters(value)
+
 
 class TestParseListParam:
     """Tests for _parse_list_param function."""

@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from netbox_mcp_server.server import create_mcp
 
@@ -55,7 +56,7 @@ def test_dict_filters_rejected_through_mcp_boundary():
     """
     with patch("netbox_mcp_server.server.netbox") as mock:
         mock.get.return_value = EMPTY_RESPONSE
-        with pytest.raises(Exception, match="valid string"):
+        with pytest.raises(ToolError, match=r"type=string_type"):
             asyncio.run(
                 _call_compat(
                     "netbox_get_objects",
@@ -148,7 +149,7 @@ def test_strict_string_filters_rejected_through_mcp_boundary():
     """Strict mode: passing a JSON string as filters is rejected at the schema boundary."""
     with patch("netbox_mcp_server.server.netbox") as mock:
         mock.get.return_value = EMPTY_RESPONSE
-        with pytest.raises(Exception, match=r"valid dictionary"):
+        with pytest.raises(ToolError, match=r"type=dict_type"):
             asyncio.run(
                 _call_strict(
                     "netbox_get_objects",

@@ -152,9 +152,12 @@ def _parse_filters(filters: str | dict[str, Any] | None) -> dict[str, Any]:
     if _is_empty_string(filters):
         return {}
     try:
-        return json.loads(filters.strip())
+        parsed = json.loads(filters.strip())
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid filters JSON: {e}") from e
+    if not isinstance(parsed, dict):
+        raise ValueError(f"filters must be a JSON object, got {type(parsed).__name__}")
+    return parsed
 
 
 def _parse_list_param(value: str | list[str] | None) -> list[str]:
@@ -409,13 +412,7 @@ def _netbox_get_object_by_id_impl(
     return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
-def netbox_get_object_by_id(
-    object_type: str,
-    object_id: int,
-    fields: list[str] | None = None,
-    brief: bool = False,
-) -> Any:
-    """
+_NETBOX_GET_OBJECT_BY_ID_DESCRIPTION = """
     Get detailed information about a specific NetBox object by its ID.
 
     Args:
@@ -441,6 +438,15 @@ def netbox_get_object_by_id(
     Returns:
         Object dict (complete or with only requested fields based on fields parameter)
     """
+
+
+def netbox_get_object_by_id(
+    object_type: str,
+    object_id: int,
+    fields: list[str] | None = None,
+    brief: bool = False,
+) -> Any:
+    """Strict-mode wrapper for netbox_get_object_by_id. See description for details."""
     fields_list = fields or []
     return _netbox_get_object_by_id_impl(
         object_type=object_type,
@@ -517,60 +523,7 @@ _NETBOX_GET_CHANGELOGS_DESCRIPTION = """
 
 
 def netbox_get_changelogs(filters: dict) -> Any:
-    """
-    Get object change records (changelogs) from NetBox based on filters.
-
-    Args:
-        filters: dict of filters to apply to the API call based on the NetBox API filtering options
-
-    Returns:
-        Paginated response dict with the following structure:
-            - count: Total number of changelog entries matching the query
-                     ALWAYS REFER TO THIS FIELD FOR THE TOTAL NUMBER OF CHANGELOG ENTRIES MATCHING THE QUERY
-            - next: URL to next page (or null if no more pages)
-                    ALWAYS REFER TO THIS FIELD FOR THE NEXT PAGE OF RESULTS
-            - previous: URL to previous page (or null if on first page)
-                        ALWAYS REFER TO THIS FIELD FOR THE PREVIOUS PAGE OF RESULTS
-            - results: Array of changelog entries for this page
-                       ALWAYS REFER TO THIS FIELD FOR THE CHANGELOG ENTRIES ON THIS PAGE
-
-    Filtering options include:
-    - user_id: Filter by user ID who made the change
-    - user: Filter by username who made the change
-    - changed_object_type_id: Filter by numeric ContentType ID (e.g., 21 for dcim.device)
-                              Note: This expects a numeric ID, not an object type string
-    - changed_object_id: Filter by ID of the changed object
-    - object_repr: Filter by object representation (usually contains object name)
-    - action: Filter by action type (created, updated, deleted)
-    - time_before: Filter for changes made before a given time (ISO 8601 format)
-    - time_after: Filter for changes made after a given time (ISO 8601 format)
-    - q: Search term to filter by object representation
-
-    Examples:
-    To find all changes made to a specific object by ID:
-    {"changed_object_id": 123}
-
-    To find changes by object name pattern:
-    {"object_repr": "router-01"}
-
-    To find all deletions in the last 24 hours:
-    {"action": "delete", "time_after": "2023-01-01T00:00:00Z"}
-
-    Each changelog entry contains:
-    - id: The unique identifier of the changelog entry
-    - user: The user who made the change
-    - user_name: The username of the user who made the change
-    - request_id: The unique identifier of the request that made the change
-    - action: The type of action performed (created, updated, deleted)
-    - changed_object_type: The type of object that was changed
-    - changed_object_id: The ID of the object that was changed
-    - object_repr: String representation of the changed object
-    - object_data: The object's data after the change (null for deletions)
-    - object_data_v2: Enhanced data representation
-    - prechange_data: The object's data before the change (null for creations)
-    - postchange_data: The object's data after the change (null for deletions)
-    - time: The timestamp when the change was made
-    """
+    """Strict-mode wrapper for netbox_get_changelogs. See description for details."""
     return _netbox_get_changelogs_impl(filters)
 
 
@@ -701,10 +654,26 @@ def _get_endpoint_info(object_type: str) -> tuple[str, str | None]:
     return type_info["endpoint"], type_info.get("fallback_endpoint")
 
 
+_COMPAT_PREAMBLE = """
+    n8n compatibility mode — parameter shapes differ from the examples below:
+      - `filters` is a JSON STRING (double-quoted), e.g. '{"site_id": 1}' — not a dict literal.
+      - `fields`, `ordering`, `object_types` are COMMA-SEPARATED STRINGS, e.g. "id,name" — not arrays.
+      - `limit`, `offset`, `object_id` are NUMBERS (floats accepted; server coerces to int).
+    The examples in the description below illustrate the conceptual data shapes. Serialize dicts
+    as proper JSON (double quotes) and arrays as CSV strings before sending.
+
+"""
+
+
+def _compat_description(base: str) -> str:
+    """Prefix a base description with the n8n compat-mode parameter-shape preamble."""
+    return _COMPAT_PREAMBLE + base
+
+
 def _register_strict_tools(mcp: FastMCP) -> None:
     """Register strict-typed tools (native int/list/dict). Default mode."""
     mcp.tool(description=_NETBOX_GET_OBJECTS_DESCRIPTION)(netbox_get_objects)
-    mcp.tool()(netbox_get_object_by_id)
+    mcp.tool(description=_NETBOX_GET_OBJECT_BY_ID_DESCRIPTION)(netbox_get_object_by_id)
     mcp.tool(description=_NETBOX_GET_CHANGELOGS_DESCRIPTION)(netbox_get_changelogs)
     mcp.tool(description=_NETBOX_SEARCH_OBJECTS_DESCRIPTION)(netbox_search_objects)
 
@@ -716,7 +685,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
     JSON Schema integer/array/object. See n8n-io/n8n#20682.
     """
 
-    @mcp.tool(description=_NETBOX_GET_OBJECTS_DESCRIPTION)
+    @mcp.tool(description=_compat_description(_NETBOX_GET_OBJECTS_DESCRIPTION))
     def netbox_get_objects(
         object_type: str,
         filters: str = "{}",
@@ -727,7 +696,7 @@ def _register_compat_tools(mcp: FastMCP) -> None:
         offset: Annotated[float, Field(default=0.0, ge=0.0)] = 0.0,
         ordering: str = "",
     ) -> Any:
-        """n8n-compat wrapper. Parses strings to native types, calls impl."""
+        """n8n-compat wrapper for netbox_get_objects. See description for details."""
         return _netbox_get_objects_impl(
             object_type=object_type,
             filters=_parse_filters(filters),
@@ -738,14 +707,14 @@ def _register_compat_tools(mcp: FastMCP) -> None:
             ordering=ordering,
         )
 
-    @mcp.tool()
+    @mcp.tool(description=_compat_description(_NETBOX_GET_OBJECT_BY_ID_DESCRIPTION))
     def netbox_get_object_by_id(
         object_type: str,
         object_id: float,
         fields: str = "",
         brief: bool = False,
     ) -> Any:
-        """n8n-compat wrapper for netbox_get_object_by_id."""
+        """n8n-compat wrapper for netbox_get_object_by_id. See description for details."""
         return _netbox_get_object_by_id_impl(
             object_type=object_type,
             object_id=int(object_id),
@@ -753,19 +722,19 @@ def _register_compat_tools(mcp: FastMCP) -> None:
             brief=brief,
         )
 
-    @mcp.tool(description=_NETBOX_GET_CHANGELOGS_DESCRIPTION)
+    @mcp.tool(description=_compat_description(_NETBOX_GET_CHANGELOGS_DESCRIPTION))
     def netbox_get_changelogs(filters: str = "{}") -> Any:
-        """n8n-compat wrapper for netbox_get_changelogs."""
+        """n8n-compat wrapper for netbox_get_changelogs. See description for details."""
         return _netbox_get_changelogs_impl(_parse_filters(filters))
 
-    @mcp.tool(description=_NETBOX_SEARCH_OBJECTS_DESCRIPTION)
+    @mcp.tool(description=_compat_description(_NETBOX_SEARCH_OBJECTS_DESCRIPTION))
     def netbox_search_objects(
         query: str,
         object_types: str = "",
         fields: str = "",
         limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
     ) -> dict[str, list[dict[str, Any]]]:
-        """n8n-compat wrapper for netbox_search_objects."""
+        """n8n-compat wrapper for netbox_search_objects. See description for details."""
         return _netbox_search_objects_impl(
             query=query,
             object_types=_parse_list_param(object_types),
