@@ -275,8 +275,9 @@ def _netbox_get_objects_impl(
     if brief:
         params["brief"] = "1"
 
-    if ordering and ordering.strip():
-        params["ordering"] = ordering
+    cleaned_ordering = ordering.strip()
+    if cleaned_ordering:
+        params["ordering"] = cleaned_ordering
 
     # Make API call
     return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
@@ -533,8 +534,12 @@ def _netbox_search_objects_impl(
     fields: list[str],
     limit: int,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Shared business logic for netbox_search_objects. Takes native types."""
-    search_types = object_types or DEFAULT_SEARCH_TYPES
+    """Shared business logic for netbox_search_objects. Takes a resolved list of
+    native types; wrappers own the ``DEFAULT_SEARCH_TYPES`` fallback so that
+    strict mode can preserve the old ``None``-vs-``[]`` contract while compat
+    mode (which cannot express ``None``) maps empty-string input to defaults.
+    """
+    search_types = object_types
 
     # Validate all object types exist in mapping
     for obj_type in search_types:
@@ -628,9 +633,12 @@ def netbox_search_objects(
     """
     Perform global search across NetBox infrastructure.
     """
+    # Preserve the pre-refactor contract: None means "use defaults";
+    # an explicit empty list means "search nothing".
+    search_types = object_types if object_types is not None else DEFAULT_SEARCH_TYPES
     return _netbox_search_objects_impl(
         query=query,
-        object_types=object_types or [],
+        object_types=search_types,
         fields=fields or [],
         limit=limit,
     )
@@ -710,7 +718,10 @@ def _register_compat_tools(mcp: FastMCP) -> None:
     @mcp.tool(description=_compat_description(_NETBOX_GET_OBJECT_BY_ID_DESCRIPTION))
     def netbox_get_object_by_id(
         object_type: str,
-        object_id: float,
+        # multiple_of=1 rejects fractional floats (42.5) at the schema layer
+        # so we never silently truncate to the wrong object. Integer-valued
+        # floats (42.0, which is what n8n sends) still pass.
+        object_id: Annotated[float, Field(multiple_of=1.0)],
         fields: str = "",
         brief: bool = False,
     ) -> Any:
@@ -735,9 +746,12 @@ def _register_compat_tools(mcp: FastMCP) -> None:
         limit: Annotated[float, Field(default=5.0, ge=1.0, le=100.0)] = 5.0,
     ) -> dict[str, list[dict[str, Any]]]:
         """n8n-compat wrapper for netbox_search_objects. See description for details."""
+        # Compat clients can't send None, so empty/blank input maps to defaults.
+        parsed_types = _parse_list_param(object_types)
+        search_types = parsed_types or DEFAULT_SEARCH_TYPES
         return _netbox_search_objects_impl(
             query=query,
-            object_types=_parse_list_param(object_types),
+            object_types=search_types,
             fields=_parse_list_param(fields),
             limit=int(limit),
         )
