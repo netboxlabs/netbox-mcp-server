@@ -7,7 +7,9 @@
 > - Docker users: rebuild images with updated CMD
 > - See [CHANGELOG.md](CHANGELOG.md) for full details
 
-This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox.  It enables you to interact with your data in NetBox directly via LLMs that support MCP.
+This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP.
+
+The server is intentionally simple — easy to get started with, hard to misuse (read-only by default, no plugin surface), and easy to fork and adapt. Forking under Apache 2.0 is a first-class path for users who need capabilities beyond the project's scope.
 
 ## Tools
 
@@ -17,7 +19,7 @@ This is a simple read-only [Model Context Protocol](https://modelcontextprotocol
 | get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
 | get_changelogs | Retrieves change history records (audit trail) based on filters |
 
-> Note: the set of supported object types is explicitly defined and limited to the core NetBox objects for now, and won't work with object types from plugins.
+> Note: The set of supported object types is explicitly limited to core NetBox objects. Plugin object types and advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope — see [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
 
 ## Usage
 
@@ -310,7 +312,9 @@ The server will be accessible at `http://localhost:8000/mcp` for MCP clients. Yo
 
 ## Development
 
-Contributions are welcome!  Please open an issue or submit a PR.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing new features — we encourage filing an issue for discussion first to confirm scope fit.
+
+If your use case needs capabilities outside this project's scope, forking under Apache 2.0 is an actively supported path.
 
 ## License
 
