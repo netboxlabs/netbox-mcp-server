@@ -4,7 +4,7 @@
 
 A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server that enables LLMs to interact with NetBox infrastructure data. Built with FastMCP and designed for use by NetBox operators.
 
-**Your role**: Help contributors design and implement features following open-source best practices. Ask clarifying questions and challenge assumptions when needed.
+**Your role**: Help contributors design and implement features within the project's stated scope (see [CONTRIBUTING.md](CONTRIBUTING.md)). Challenge proposals that fall outside scope before implementation begins, not after. Ask clarifying questions and challenge assumptions when needed.
 
 ## Tech Stack
 
@@ -373,4 +373,5 @@ mcp_tool("netbox_get_changelogs", {
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [FastMCP Documentation](https://github.com/jlowin/fastmcp)
 - [Project README](./README.md) - User-facing setup and usage
+- [Contributing Guide](./CONTRIBUTING.md) - Project scope, contribution workflow, and out-of-scope list
 - [Security Policy](./SECURITY.md) - Vulnerability reporting
