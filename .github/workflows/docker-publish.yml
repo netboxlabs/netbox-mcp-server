@@ -97,10 +97,17 @@ jobs:
           major="${version%%.*}"
           minor_part="${version#*.}"
           major_minor="${major}.${minor_part%%.*}"
+          # Pre-release tags (containing `-`, e.g. v1.2.0-rc1) only stamp
+          # the full version. They never move :latest, :MAJOR, or :MAJOR.MINOR.
+          case "$version" in
+            *-*) is_prerelease=true ;;
+            *)   is_prerelease=false ;;
+          esac
           {
             echo "version=${version}"
             echo "major=${major}"
             echo "major_minor=${major_minor}"
+            echo "is_prerelease=${is_prerelease}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Create manifest list and push
@@ -110,17 +117,19 @@ jobs:
           VERSION: ${{ steps.tags.outputs.version }}
           MAJOR: ${{ steps.tags.outputs.major }}
           MAJOR_MINOR: ${{ steps.tags.outputs.major_minor }}
+          IS_PRERELEASE: ${{ steps.tags.outputs.is_prerelease }}
         run: |
           sources=()
           for digest_file in *; do
             sources+=("${IMAGE}@sha256:${digest_file}")
           done
-          docker buildx imagetools create \
-            --tag "${IMAGE}:latest" \
-            --tag "${IMAGE}:${VERSION}" \
-            --tag "${IMAGE}:${MAJOR_MINOR}" \
-            --tag "${IMAGE}:${MAJOR}" \
-            "${sources[@]}"
+          tag_args=(--tag "${IMAGE}:${VERSION}")
+          if [ "${IS_PRERELEASE}" = "false" ]; then
+            tag_args+=(--tag "${IMAGE}:latest")
+            tag_args+=(--tag "${IMAGE}:${MAJOR_MINOR}")
+            tag_args+=(--tag "${IMAGE}:${MAJOR}")
+          fi
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
 
       - name: Inspect published manifest
         env:
