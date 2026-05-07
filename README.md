@@ -275,6 +275,15 @@ docker pull netboxlabs/netbox-mcp-server:<X.Y>     # latest within a minor
 docker pull netboxlabs/netbox-mcp-server:<X>       # latest within a major
 ```
 
+**Verify image provenance (optional but recommended).** Images are signed with [cosign](https://github.com/sigstore/cosign) (keyless, via GitHub OIDC) and ship with SLSA build provenance:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp '^https://github.com/netboxlabs/netbox-mcp-server/' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  netboxlabs/netbox-mcp-server:<tag>
+```
+
 ### Standard Docker Image
 
 Build and run the NetBox MCP server in a container:
