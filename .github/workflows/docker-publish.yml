@@ -2,68 +2,137 @@ name: Docker Multi-arch Build and Publish
 
 on:
   push:
-    branches: ["main"]
     tags: ["v*.*.*"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY: docker.io
+  IMAGE_NAME: netboxlabs/netbox-mcp-server
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
-      packages: write
-
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: blacksmith-2vcpu-ubuntu-2404
+          - platform: linux/arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build image and push by digest
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-${{ matrix.runner }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge multi-arch manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-      - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Log in to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            # Set latest tag for main branch
-            type=raw,value=latest,enable={{is_default_branch}}
-            # Tag with branch name (e.g., main, develop)
-            type=ref,event=branch
-            # Tag with PR number (e.g., pr-2)
-            type=ref,event=pr
-            # Tag with semver - v1.2.3 -> 1.2.3
-            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            # Tag with major.minor - v1.2.3 -> 1.2
-            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            # Tag with major - v1.2.3 -> 1
-            type=semver,pattern={{major}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            # Tag with git sha
-            type=sha,format=short
+      - name: Compute version tags
+        id: tags
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="${REF_NAME#v}"
+          major="${version%%.*}"
+          minor_part="${version#*.}"
+          major_minor="${major}.${minor_part%%.*}"
+          # Pre-release tags (containing `-`, e.g. v1.2.0-rc1) only stamp
+          # the full version. They never move :latest, :MAJOR, or :MAJOR.MINOR.
+          case "$version" in
+            *-*) is_prerelease=true ;;
+            *)   is_prerelease=false ;;
+          esac
+          {
+            echo "version=${version}"
+            echo "major=${major}"
+            echo "major_minor=${major_minor}"
+            echo "is_prerelease=${is_prerelease}"
+          } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          VERSION: ${{ steps.tags.outputs.version }}
+          MAJOR: ${{ steps.tags.outputs.major }}
+          MAJOR_MINOR: ${{ steps.tags.outputs.major_minor }}
+          IS_PRERELEASE: ${{ steps.tags.outputs.is_prerelease }}
+        run: |
+          sources=()
+          for digest_file in *; do
+            sources+=("${IMAGE}@sha256:${digest_file}")
+          done
+          tag_args=(--tag "${IMAGE}:${VERSION}")
+          if [ "${IS_PRERELEASE}" = "false" ]; then
+            tag_args+=(--tag "${IMAGE}:latest")
+            tag_args+=(--tag "${IMAGE}:${MAJOR_MINOR}")
+            tag_args+=(--tag "${IMAGE}:${MAJOR}")
+          fi
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+
+      - name: Inspect published manifest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          VERSION: ${{ steps.tags.outputs.version }}
+        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"

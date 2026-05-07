@@ -16,7 +16,7 @@ jobs:
       security-events: write
     env:
       TRIVY_DISABLE_VEX_NOTICE: "true"
-      IMAGE_REF: ghcr.io/netboxlabs/netbox-mcp-server:latest
+      IMAGE_REF: docker.io/netboxlabs/netbox-mcp-server:latest
 
     steps:
       - name: Pull image
