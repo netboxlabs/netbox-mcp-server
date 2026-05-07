@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
     "httpx>=0.28.1",
-    "fastmcp>=3.2.0,<4",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.13.1",
+    "fastmcp>=3.2.4,<4",
+    "pydantic>=2.13.3",
+    "pydantic-settings>=2.14.0",
 ]
 
 [project.scripts]
@@ -20,11 +20,11 @@ netbox-mcp-server = "netbox_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.5.1",
+    "pre-commit>=4.6.0",
     "pytest>=9.0.2",
     "pytest-cov>=7.1.0",
     "python-semantic-release>=10.5.3",
-    "ruff>=0.15.8",
+    "ruff>=0.15.12",
 ]
 
 [tool.semantic_release]
