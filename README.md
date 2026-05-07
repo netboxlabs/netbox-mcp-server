@@ -259,6 +259,22 @@ uv run netbox-mcp-server --transport http --port 9000       # Custom HTTP port
 
 ## Docker Usage
 
+### Pre-built Image (Docker Hub)
+
+Pre-built multi-arch images (`linux/amd64`, `linux/arm64`) are published to Docker Hub on every tagged release:
+
+```bash
+docker pull netboxlabs/netbox-mcp-server:latest
+```
+
+Pin to a specific version in production. The `latest` tag tracks the most recent release and can change without notice. See the [releases page](https://github.com/netboxlabs/netbox-mcp-server/releases) for available versions:
+
+```bash
+docker pull netboxlabs/netbox-mcp-server:<X.Y.Z>   # exact version
+docker pull netboxlabs/netbox-mcp-server:<X.Y>     # latest within a minor
+docker pull netboxlabs/netbox-mcp-server:<X>       # latest within a major
+```
+
 ### Standard Docker Image
 
 Build and run the NetBox MCP server in a container:
