@@ -718,7 +718,7 @@ def main() -> None:
                 Middleware(
                     CORSMiddleware,
                     allow_origins=settings.cors_origins,
-                    allow_methods=["GET", "OPTIONS"],
+                    allow_methods=["GET", "POST", "OPTIONS"],
                     allow_headers=[
                         "Authorization",
                         "mcp-protocol-version",
