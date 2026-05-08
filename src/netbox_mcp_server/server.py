@@ -7,6 +7,8 @@ from typing import Annotated, Any
 import httpx
 from fastmcp import FastMCP
 from pydantic import Field
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 from netbox_mcp_server.config import Settings, configure_logging
 from netbox_mcp_server.netbox_client import NetBoxRestClient
@@ -53,6 +55,11 @@ def parse_cli_args() -> dict[str, Any]:
         "--port",
         type=int,
         help="Port for HTTP server (default: 8000)",
+    )
+    parser.add_argument(
+        "--cors-origins",
+        action="append",
+        help='CORS origins (repeat flag). Use * to allow any origin (default: none)',
     )
 
     # Security settings
@@ -101,6 +108,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["host"] = args.host
     if args.port is not None:
         overlay["port"] = args.port
+    if args.cors_origins is not None:
+        overlay["cors_origins"] = args.cors_origins
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
@@ -705,7 +714,20 @@ def main() -> None:
             mcp.run(transport="stdio")
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
-            mcp.run(transport="http", host=settings.host, port=settings.port)
+            middleware = [
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=settings.cors_origins,
+                    allow_methods=["GET", "OPTIONS"],
+                    allow_headers=[
+                        "Authorization",
+                        "mcp-protocol-version",
+                        "mcp-session-id",
+                    ],
+                    expose_headers=["mcp-session-id"],
+                )
+            ]
+            mcp.run(transport="http", host=settings.host, port=settings.port, middleware=middleware)
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
         sys.exit(1)
