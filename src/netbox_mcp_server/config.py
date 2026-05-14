@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     enable_plugin_discovery: bool = False
     """Whether to auto-discover plugin object types from NetBox at startup"""
 
+    # ===== Write Tool Settings =====
+    enable_writes: bool = False
+    """Whether to register create/update/delete tools. Requires NetBox token with write perms."""
+
     # ===== Security Settings =====
     verify_ssl: bool = True
     """Whether to verify SSL certificates when connecting to NetBox"""
@@ -95,6 +99,7 @@ class Settings(BaseSettings):
             "port": self.port if self.transport == "http" else "N/A",
             "verify_ssl": self.verify_ssl,
             "enable_plugin_discovery": self.enable_plugin_discovery,
+            "enable_writes": self.enable_writes,
             "log_level": self.log_level,
         }
 

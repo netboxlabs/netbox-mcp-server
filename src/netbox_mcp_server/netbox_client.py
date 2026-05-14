@@ -48,13 +48,20 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def create(self, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self,
+        endpoint: str,
+        data: dict[str, Any],
+        fallback_endpoint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new object in NetBox.
 
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             data: Object data to create
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             The created object as a dict
@@ -62,7 +69,13 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def update(self, endpoint: str, id: int, data: dict[str, Any]) -> dict[str, Any]:
+    def update(
+        self,
+        endpoint: str,
+        id: int,
+        data: dict[str, Any],
+        fallback_endpoint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Update an existing object in NetBox.
 
@@ -70,6 +83,8 @@ class NetBoxClientBase(abc.ABC):
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: ID of the object to update
             data: Object data to update
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             The updated object as a dict
@@ -77,13 +92,20 @@ class NetBoxClientBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete(self, endpoint: str, id: int) -> bool:
+    def delete(
+        self,
+        endpoint: str,
+        id: int,
+        fallback_endpoint: str | None = None,
+    ) -> bool:
         """
         Delete an object from NetBox.
 
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: ID of the object to delete
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             True if deletion was successful, False otherwise
@@ -231,13 +253,20 @@ class NetBoxRestClient(NetBoxClientBase):
 
         return response.json()
 
-    def create(self, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self,
+        endpoint: str,
+        data: dict[str, Any],
+        fallback_endpoint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new object in NetBox via the REST API.
 
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             data: Object data to create
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             The created object as a dict
@@ -247,10 +276,21 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         url = self._build_url(endpoint)
         response = self.session.post(url, json=data)
+
+        if response.status_code == 404 and fallback_endpoint:
+            fallback_url = self._build_url(fallback_endpoint)
+            response = self.session.post(fallback_url, json=data)
+
         response.raise_for_status()
         return response.json()
 
-    def update(self, endpoint: str, id: int, data: dict[str, Any]) -> dict[str, Any]:
+    def update(
+        self,
+        endpoint: str,
+        id: int,
+        data: dict[str, Any],
+        fallback_endpoint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Update an existing object in NetBox via the REST API.
 
@@ -258,6 +298,8 @@ class NetBoxRestClient(NetBoxClientBase):
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: ID of the object to update
             data: Object data to update
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
             The updated object as a dict
@@ -267,25 +309,42 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         url = self._build_url(endpoint, id)
         response = self.session.patch(url, json=data)
+
+        if response.status_code == 404 and fallback_endpoint:
+            fallback_url = self._build_url(fallback_endpoint, id)
+            response = self.session.patch(fallback_url, json=data)
+
         response.raise_for_status()
         return response.json()
 
-    def delete(self, endpoint: str, id: int) -> bool:
+    def delete(
+        self,
+        endpoint: str,
+        id: int,
+        fallback_endpoint: str | None = None,
+    ) -> bool:
         """
         Delete an object from NetBox via the REST API.
 
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             id: ID of the object to delete
+            fallback_endpoint: Optional alternative endpoint to try if primary returns 404
+                               (used for NetBox version compatibility)
 
         Returns:
-            True if deletion was successful, False otherwise
+            True if deletion was successful (HTTP 204), False otherwise
 
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self.session.delete(url)
+
+        if response.status_code == 404 and fallback_endpoint:
+            fallback_url = self._build_url(fallback_endpoint, id)
+            response = self.session.delete(fallback_url)
+
         response.raise_for_status()
         return response.status_code == 204
 

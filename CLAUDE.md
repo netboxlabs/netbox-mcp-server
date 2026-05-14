@@ -2,9 +2,11 @@
 
 ## Core Concept
 
-A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server that enables LLMs to interact with NetBox infrastructure data. Built with FastMCP and designed for use by NetBox operators.
+A [Model Context Protocol](https://modelcontextprotocol.io/) server that enables LLMs to interact with NetBox infrastructure data. Built with FastMCP and designed for use by NetBox operators.
 
-**Your role**: Help contributors design and implement features within the project's stated scope (see [CONTRIBUTING.md](CONTRIBUTING.md)). Challenge proposals that fall outside scope before implementation begins, not after. Ask clarifying questions and challenge assumptions when needed.
+**This is a fork of [netboxlabs/netbox-mcp-server](https://github.com/netboxlabs/netbox-mcp-server)** that adds opt-in write tools (create/update/delete) gated behind `ENABLE_WRITES=true`. Upstream is read-only by design; this fork extends that scope. Read-only behavior is preserved as the default — writes only register when explicitly enabled.
+
+**Your role**: Help with features that fit this fork's purpose — a read-by-default NetBox MCP server with opt-in writes. Upstream's `CONTRIBUTING.md` describes the upstream project's scope (read-only, no plugin surface); on this fork, write-tool work is in scope. Challenge proposals that don't fit *this* fork (e.g. plugin object types, GraphQL, removing the write gate). Ask clarifying questions when needed.
 
 ## Tech Stack
 
@@ -130,7 +132,7 @@ def get_stuff(t, f):
 ### Architecture Patterns
 
 - **Abstraction layer**: `NetBoxClientBase` defines interface for future ORM implementation
-- **Read-only by design**: Only GET operations exposed; no create/update/delete tools
+- **Read-only by default, opt-in writes**: GET tools are always registered. `create_object`/`update_object`/`delete_object` only register when `ENABLE_WRITES=true`; the gate lives in `_register_write_tools()` and is called from `main()`. `delete_object` additionally requires `confirm=True` and supports `dry_run=True`. Mutations are logged at INFO by the tool layer in addition to NetBox's changelog.
 - **Environment-based config**: All secrets via environment variables, never hardcoded
 - **Explicit object mapping**: `NETBOX_OBJECT_TYPES` dictionary maintains allowed types
 
@@ -167,12 +169,13 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 ## Environment Variables
 
 - `NETBOX_URL`: Base URL of NetBox instance (e.g., `https://netbox.example.com/`)
-- `NETBOX_TOKEN`: Read-only API token with appropriate permissions
+- `NETBOX_TOKEN`: API token. Read-only is fine for the default tool set; required to have write permissions when `ENABLE_WRITES=true`.
+- `ENABLE_WRITES`: Opt in to `create_object`/`update_object`/`delete_object` tools (default: `false`)
 - `LOG_LEVEL`: Logging verbosity (default: `INFO`, options: `DEBUG`, `WARNING`, `ERROR`)
 
 ## Security Considerations
 
-- **Read-only tokens**: Always use read-only API tokens with minimal required permissions
+- **Minimal-permission tokens**: Use read-only tokens by default. Only grant write permissions when `ENABLE_WRITES=true` is intentionally set, and even then scope the token to the object types you actually need to mutate.
 - **No credential storage**: Tokens passed via environment, never stored or logged
 - **SSL verification**: Enabled by default in REST client
 - **No plugin support**: Deliberately excludes plugin object types to limit attack surface
@@ -197,7 +200,8 @@ Currently no automated test suite. When adding tests:
 
 ### Code Quality
 
-- ❌ Add write operations (create/update/delete) without explicit project maintainer approval
+- ❌ Register write tools unconditionally — they must stay gated behind `ENABLE_WRITES` and `_register_write_tools()`. Never add `@mcp.tool` directly to a write function.
+- ❌ Remove the `confirm=True` requirement on `delete_object` or the `dry_run` parameter on update/delete without explicit user agreement
 - ❌ Add support for plugin object types (scope limited to core NetBox)
 - ❌ Hardcode credentials or NetBox URLs
 - ❌ Bypass the `NetBoxClientBase` abstraction
@@ -296,13 +300,13 @@ Currently no automated test suite. When adding tests:
 
 - Exposes core NetBox functionality not currently accessible
 - Has clear use case for LLM-driven queries
-- Maintains read-only contract
+- Read tools register unconditionally; write tools register only via `_register_write_tools()`
 - Follows existing tool patterns
 
 ❌ **Don't add if**:
 
 - Duplicates existing tool functionality
-- Requires write operations
+- Adds a write tool without going through the `ENABLE_WRITES` gate
 - Only benefits niche use cases
 - Adds complexity without clear value
 

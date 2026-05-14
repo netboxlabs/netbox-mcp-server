@@ -1,5 +1,7 @@
 # NetBox MCP Server
 
+> **Fork notice**: This is a fork of [netboxlabs/netbox-mcp-server](https://github.com/netboxlabs/netbox-mcp-server) that adds opt-in write tools (`create_object`, `update_object`, `delete_object`) behind `ENABLE_WRITES=true`. Upstream is read-only by design; this fork extends that scope. The default behavior matches upstream — write tools never register unless explicitly enabled.
+
 > **⚠️ Breaking Change in v1.0.0**: The project structure has changed.
 > If upgrading from v0.1.0, update your configuration:
 > - Change `uv run server.py` to `uv run netbox-mcp-server`
@@ -7,7 +9,7 @@
 > - Docker users: rebuild images with updated CMD
 > - See [CHANGELOG.md](CHANGELOG.md) for full details
 
-This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP.
+This is a [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP. Read-only by default; opt in to write tools (create/update/delete) via `ENABLE_WRITES=true`.
 
 The server is intentionally simple — easy to get started with, hard to misuse (read-only by default, no plugin surface), and easy to fork and adapt. Forking under Apache 2.0 is a first-class path for users who need capabilities beyond the project's scope.
 
@@ -18,6 +20,16 @@ The server is intentionally simple — easy to get started with, hard to misuse 
 | get_objects | Retrieves NetBox core objects based on their type and filters |
 | get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
 | get_changelogs | Retrieves change history records (audit trail) based on filters |
+
+**Write tools (off by default; set `ENABLE_WRITES=true` to register):**
+
+| Tool | Description |
+|------|-------------|
+| create_object | Creates a NetBox object |
+| update_object | PATCH-updates a NetBox object. Supports `dry_run=True` to preview the diff before committing |
+| delete_object | Deletes a NetBox object. Requires `confirm=True`; supports `dry_run=True` to preview the target |
+
+> ⚠️ **Destructive operations**: `update_object` and `delete_object` modify NetBox state. The API token must have write permissions, and every mutation is logged at INFO level by this server and recorded in NetBox's changelog. `delete_object` requires an explicit `confirm=True` to guard against accidental calls.
 
 > Note: Core NetBox object types are always available. Plugin object types can be auto-discovered — see [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope — see [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
 
@@ -173,6 +185,7 @@ The server supports multiple configuration sources with the following precedence
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
 | `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
+| `ENABLE_WRITES` | Boolean | `false` | No | Register `create_object`/`update_object`/`delete_object` tools. Token must have write permissions in NetBox. |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
 
 ### Transport Examples

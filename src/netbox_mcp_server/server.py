@@ -80,6 +80,15 @@ def parse_cli_args() -> dict[str, Any]:
         help="Auto-discover plugin object types from NetBox at startup",
     )
 
+    # Write tool settings
+    parser.add_argument(
+        "--enable-writes",
+        action="store_true",
+        default=None,
+        dest="enable_writes",
+        help="Register create/update/delete tools (requires NetBox token with write perms)",
+    )
+
     # Observability settings
     parser.add_argument(
         "--log-level",
@@ -105,6 +114,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
         overlay["enable_plugin_discovery"] = args.enable_plugin_discovery
+    if args.enable_writes is not None:
+        overlay["enable_writes"] = args.enable_writes
     if args.log_level is not None:
         overlay["log_level"] = args.log_level
 
@@ -311,7 +322,7 @@ def netbox_get_objects(
 @mcp.tool
 def netbox_get_object_by_id(
     object_type: str,
-    object_id: int,
+    object_id: Annotated[int, Field(ge=1)],
     fields: list[str] | None = None,
     brief: bool = False,
 ):
@@ -359,6 +370,183 @@ def netbox_get_object_by_id(
         params["brief"] = "1"
 
     return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
+
+
+def _httpx_error_to_value_error(exc: httpx.HTTPStatusError) -> ValueError:
+    """Convert an httpx.HTTPStatusError into a ValueError including NetBox's response body.
+
+    NetBox returns structured field-level errors in 4xx response bodies
+    (e.g. {"name": ["This field is required."]}). Surfacing that detail to the
+    LLM gives it enough context to retry the call with corrected input.
+    """
+    try:
+        detail: Any = exc.response.json()
+    except ValueError:
+        detail = exc.response.text[:500]
+    return ValueError(f"NetBox API error {exc.response.status_code}: {detail}")
+
+
+def netbox_create_object(
+    object_type: str,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Create a new object in NetBox.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "dcim.device", "ipam.ipaddress")
+        data: Field values for the new object. Required fields depend on the object type;
+              consult NetBox API docs or call netbox_get_objects to see existing examples.
+              Foreign keys generally accept either a numeric id or a natural slug.
+
+    Returns:
+        The created object as a dict (includes server-assigned id, url, created, etc.).
+    """
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    if not data:
+        raise ValueError("data must be a non-empty dict")
+
+    logger = logging.getLogger(__name__)
+    endpoint, fallback = _get_endpoint_info(object_type)
+    logger.info(f"netbox_create_object: {object_type} fields={sorted(data.keys())}")
+    try:
+        result = netbox.create(endpoint, data, fallback_endpoint=fallback)
+    except httpx.HTTPStatusError as e:
+        raise _httpx_error_to_value_error(e) from e
+    logger.info(f"netbox_create_object: {object_type} created id={result.get('id')}")
+    return result
+
+
+def netbox_update_object(
+    object_type: str,
+    object_id: Annotated[int, Field(ge=1)],
+    data: dict[str, Any],
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """
+    Partial update (PATCH) of an existing NetBox object.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "dcim.device")
+        object_id: The numeric ID of the object to update
+        data: Fields to change. PATCH semantics — only listed fields are modified;
+              omitted fields are left as-is.
+        dry_run: If True, fetch the current object and return the intended diff
+                 without sending the PATCH. Use this to preview a change before
+                 committing to it.
+
+    Returns:
+        On a real call: the updated object as a dict.
+        On dry_run: {"dry_run": True, "object_type": ..., "object_id": ...,
+                     "current": <subset of current values for the changed fields>,
+                     "proposed": <data>}.
+    """
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    if not data:
+        raise ValueError("data must be a non-empty dict")
+
+    logger = logging.getLogger(__name__)
+    endpoint, fallback = _get_endpoint_info(object_type)
+
+    if dry_run:
+        logger.info(
+            f"netbox_update_object[dry_run]: {object_type} id={object_id} "
+            f"fields={sorted(data.keys())}"
+        )
+        try:
+            current = netbox.get(endpoint, id=object_id, fallback_endpoint=fallback)
+        except httpx.HTTPStatusError as e:
+            raise _httpx_error_to_value_error(e) from e
+        current_subset = {k: current.get(k) for k in data}
+        return {
+            "dry_run": True,
+            "object_type": object_type,
+            "object_id": object_id,
+            "current": current_subset,
+            "proposed": data,
+        }
+
+    logger.info(
+        f"netbox_update_object: {object_type} id={object_id} fields={sorted(data.keys())}"
+    )
+    try:
+        result = netbox.update(endpoint, object_id, data, fallback_endpoint=fallback)
+    except httpx.HTTPStatusError as e:
+        raise _httpx_error_to_value_error(e) from e
+    logger.info(f"netbox_update_object: {object_type} id={object_id} updated")
+    return result
+
+
+def netbox_delete_object(
+    object_type: str,
+    object_id: Annotated[int, Field(ge=1)],
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """
+    Delete a NetBox object. Cannot be undone.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "dcim.device")
+        object_id: The numeric ID of the object to delete
+        confirm: Must be set to True for a real delete to proceed. Guards against
+                 the LLM calling delete with default arguments. Ignored when dry_run=True.
+        dry_run: If True, fetch the target object and return what would be deleted
+                 without issuing the DELETE.
+
+    Returns:
+        On a real call: {"deleted": True, "object_type": ..., "object_id": ...}.
+        On dry_run: {"dry_run": True, "object_type": ..., "object_id": ...,
+                     "target": <current object>}.
+    """
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+
+    logger = logging.getLogger(__name__)
+    endpoint, fallback = _get_endpoint_info(object_type)
+
+    if dry_run:
+        logger.info(
+            f"netbox_delete_object[dry_run]: {object_type} id={object_id}"
+        )
+        try:
+            target = netbox.get(endpoint, id=object_id, fallback_endpoint=fallback)
+        except httpx.HTTPStatusError as e:
+            raise _httpx_error_to_value_error(e) from e
+        return {
+            "dry_run": True,
+            "object_type": object_type,
+            "object_id": object_id,
+            "target": target,
+        }
+
+    if not confirm:
+        raise ValueError(
+            "Refusing to delete without explicit confirm=True. Pass confirm=True "
+            "to proceed, or dry_run=True to preview the target."
+        )
+
+    logger.info(f"netbox_delete_object: {object_type} id={object_id} deleting")
+    try:
+        deleted = netbox.delete(endpoint, object_id, fallback_endpoint=fallback)
+    except httpx.HTTPStatusError as e:
+        raise _httpx_error_to_value_error(e) from e
+
+    if not deleted:
+        raise RuntimeError(
+            f"Delete of {object_type} id={object_id} returned a non-204 success "
+            "status; the object may not have been removed. Re-check via netbox_get_object_by_id."
+        )
+
+    logger.info(f"netbox_delete_object: {object_type} id={object_id} deleted")
+    return {"deleted": True, "object_type": object_type, "object_id": object_id}
 
 
 @mcp.tool
@@ -643,6 +831,17 @@ async def _update_tool_descriptions() -> None:
             tool.description = f"{prefix}\n\n{type_list}{suffix}"
 
 
+def _register_write_tools(mcp_instance: FastMCP) -> None:
+    """Register write tools on the given FastMCP instance.
+
+    Called from main() only when settings.enable_writes is True, so the
+    tools are absent from tools/list by default.
+    """
+    mcp_instance.tool(netbox_create_object)
+    mcp_instance.tool(netbox_update_object)
+    mcp_instance.tool(netbox_delete_object)
+
+
 def main() -> None:
     """Main entry point for the MCP server."""
     global netbox
@@ -698,6 +897,18 @@ def main() -> None:
         if plugin_types:
             NETBOX_OBJECT_TYPES.update(plugin_types)
             asyncio.run(_update_tool_descriptions())
+
+    if settings.enable_writes:
+        _register_write_tools(mcp)
+        if settings.transport == "http":
+            bind = f"http://{settings.host}:{settings.port}"
+        else:
+            bind = "stdio"
+        logger.warning(
+            f"Write tools ENABLED ({bind}). NetBox API token must have write "
+            "permissions; all mutations are recorded in NetBox's changelog. "
+            "Verify the bind address is not exposed to untrusted networks."
+        )
 
     try:
         if settings.transport == "stdio":

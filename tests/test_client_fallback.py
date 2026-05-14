@@ -284,3 +284,108 @@ def test_fallback_builds_correct_url(client):
 
         fallback_url = mock_get.call_args_list[1][0][0]
         assert fallback_url == "https://netbox.example.com/api/extras/object-types/"
+
+
+# ============================================================================
+# Write methods: fallback parity with get()
+# ============================================================================
+
+
+def test_create_falls_back_on_404(client):
+    """create() should retry on the fallback endpoint when primary 404s."""
+    primary = MagicMock()
+    primary.status_code = 404
+
+    fallback = MagicMock()
+    fallback.status_code = 201
+    fallback.json.return_value = {"id": 1, "name": "x"}
+    fallback.raise_for_status = MagicMock()
+
+    with patch.object(client.session, "post") as mock_post:
+        mock_post.side_effect = [primary, fallback]
+
+        result = client.create(
+            "vpn/tunnels",
+            {"name": "x"},
+            fallback_endpoint="plugins/vpn/tunnels",
+        )
+
+        assert mock_post.call_count == 2
+        assert "vpn/tunnels" in mock_post.call_args_list[0][0][0]
+        assert "plugins/vpn/tunnels" in mock_post.call_args_list[1][0][0]
+        assert result == {"id": 1, "name": "x"}
+
+
+def test_create_does_not_fall_back_on_400(client):
+    """A 400 (validation error) must surface immediately, not retry."""
+    primary = MagicMock()
+    primary.status_code = 400
+    primary.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "bad request", request=MagicMock(), response=MagicMock()
+    )
+
+    with patch.object(client.session, "post") as mock_post:
+        mock_post.return_value = primary
+
+        with pytest.raises(httpx.HTTPStatusError):
+            client.create(
+                "vpn/tunnels",
+                {"name": "x"},
+                fallback_endpoint="plugins/vpn/tunnels",
+            )
+
+        assert mock_post.call_count == 1
+
+
+def test_update_falls_back_on_404(client):
+    primary = MagicMock()
+    primary.status_code = 404
+
+    fallback = MagicMock()
+    fallback.status_code = 200
+    fallback.json.return_value = {"id": 1, "name": "renamed"}
+    fallback.raise_for_status = MagicMock()
+
+    with patch.object(client.session, "patch") as mock_patch:
+        mock_patch.side_effect = [primary, fallback]
+
+        result = client.update(
+            "vpn/tunnels",
+            1,
+            {"name": "renamed"},
+            fallback_endpoint="plugins/vpn/tunnels",
+        )
+
+        assert mock_patch.call_count == 2
+        assert result == {"id": 1, "name": "renamed"}
+
+
+def test_delete_falls_back_on_404(client):
+    primary = MagicMock()
+    primary.status_code = 404
+
+    fallback = MagicMock()
+    fallback.status_code = 204
+    fallback.raise_for_status = MagicMock()
+
+    with patch.object(client.session, "delete") as mock_delete:
+        mock_delete.side_effect = [primary, fallback]
+
+        assert client.delete(
+            "vpn/tunnels",
+            1,
+            fallback_endpoint="plugins/vpn/tunnels",
+        ) is True
+        assert mock_delete.call_count == 2
+
+
+def test_delete_returns_false_on_non_204_success(client):
+    """The bool return reflects 204; tool layer turns False into an error."""
+    response = MagicMock()
+    response.status_code = 200
+    response.raise_for_status = MagicMock()
+
+    with patch.object(client.session, "delete") as mock_delete:
+        mock_delete.return_value = response
+
+        assert client.delete("dcim/sites", 1) is False
