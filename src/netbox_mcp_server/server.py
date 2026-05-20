@@ -137,7 +137,7 @@ def validate_filters(filters: dict) -> None:
 
     Valid patterns:
     - Direct field filters: site_id, name, status
-    - Lookup expressions: name__ic, status__in, id__gt
+    - Lookup expressions supported by the target NetBox field: name__ic, id__gt
 
     Args:
         filters: Dictionary of filter parameters
@@ -197,11 +197,16 @@ def validate_filters(filters: dict) -> None:
 
                 FILTER RULES:
                 Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
-                Valid: Lookups like {'name__ic': 'switch', 'id__in': [1,2,3], 'vid__gte': 100}
+                Valid: Field-supported lookups like {'name__ic': 'switch', 'vid__gte': 100}
                 Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
 
                 Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
                                  empty, regex, iregex, lt, lte, gt, gte, in
+                Lookup support is field-specific. NetBox may silently ignore unsupported
+                lookups, including relationship-field patterns like *_id__in, and return
+                overly broad results. Prefer exact relationship filters such as
+                {'vminterface_id': 621493}; for multiple related objects, run separate
+                exact-match queries or use a two-step query pattern.
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
