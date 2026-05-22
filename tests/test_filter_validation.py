@@ -12,7 +12,7 @@ def test_direct_field_filters_pass():
 
 def test_lookup_suffixes_pass():
     """Lookup suffixes should pass validation."""
-    validate_filters({"name__ic": "switch", "id__in": [1, 2, 3], "vid__gte": 100})
+    validate_filters({"name__ic": "switch", "vid__gte": 100})
 
 
 def test_special_parameters_ignored():
@@ -36,3 +36,9 @@ def test_error_message_helpful():
     """Error message should mention the invalid filter and suggest alternatives."""
     with pytest.raises(ValueError, match="Multi-hop relationship traversal"):
         validate_filters({"device__site_id": 1})
+
+
+def test_in_suffix_rejected_with_actionable_message():
+    """__in suffix should be rejected with a message showing the correct form."""
+    with pytest.raises(ValueError, match=r"location_id.*list.*directly"):
+        validate_filters({"location_id__in": [1, 2, 3]})

@@ -129,21 +129,23 @@ netbox = None
 
 def validate_filters(filters: dict) -> None:
     """
-    Validate that filters don't use multi-hop relationship traversal.
+    Validate that filters don't use unsupported lookup suffixes or multi-hop
+    relationship traversal.
 
-    NetBox API does not support nested relationship queries like:
-    - device__site_id (filtering by related object's field)
-    - interface__device__site (multiple relationship hops)
+    NetBox API does not support:
+    - __in suffix (use a list value instead: {'location_id': [1, 2, 3]})
+    - nested relationship queries like device__site_id or interface__device__site
 
     Valid patterns:
     - Direct field filters: site_id, name, status
-    - Lookup expressions: name__ic, status__in, id__gt
+    - Lookup expressions: name__ic, id__gt
 
     Args:
         filters: Dictionary of filter parameters
 
     Raises:
-        ValueError: If filter uses invalid multi-hop relationship traversal
+        ValueError: If filter uses an unsupported lookup suffix or multi-hop
+                    relationship traversal
     """
     valid_suffixes = {
         "n",
@@ -162,7 +164,6 @@ def validate_filters(filters: dict) -> None:
         "lte",
         "gt",
         "gte",
-        "in",
     }
 
     for filter_name in filters:
@@ -175,15 +176,22 @@ def validate_filters(filters: dict) -> None:
 
         parts = filter_name.split("__")
 
+        # Reject __in explicitly with a targeted, actionable error
+        if len(parts) == 2 and parts[-1] == "in":
+            base = parts[0]
+            raise ValueError(
+                f"Invalid filter '{filter_name}': '__in' lookup suffix is not supported. "
+                f"Pass a list to the field directly instead: {{'{base}': [1, 2, 3]}}"
+            )
+
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
         if len(parts) == 2 and parts[-1] in valid_suffixes:
             continue
         # Block multi-hop patterns and invalid suffixes
         if len(parts) >= 2:
             raise ValueError(
-                f"Invalid filter '{filter_name}': Multi-hop relationship "
-                f"traversal or invalid lookup suffix not supported. Use direct field filters like "
-                f"'site_id' or two-step queries."
+                f"Invalid filter '{filter_name}': Multi-hop relationship traversal "
+                f"is not supported. Use direct field filters like 'site_id' or two-step queries."
             )
 
 
@@ -197,11 +205,13 @@ def validate_filters(filters: dict) -> None:
 
                 FILTER RULES:
                 Valid: Direct fields like {'site_id': 1, 'name': 'router', 'status': 'active'}
-                Valid: Lookups like {'name__ic': 'switch', 'id__in': [1,2,3], 'vid__gte': 100}
                 Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
 
-                Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
-                                 empty, regex, iregex, lt, lte, gt, gte, in
+                Certain model fields also support filtering using additional lookup expressions:
+                  - Numeric fields: n, lt, lte, gt, gte, empty
+                  - Foreign keys: n
+                  - Custom fields: cf_<name>
+                  - String fields: n, ic, nic, isw, nisw, iew, niew, ie, nie, empty, regex, iregex
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
