@@ -175,6 +175,13 @@ def validate_filters(filters: dict) -> None:
 
         parts = filter_name.split("__")
 
+        if len(parts) == 2 and parts[0].endswith("_id") and parts[-1] == "in":
+            raise ValueError(
+                f"Invalid filter '{filter_name}': Relationship ID list filters "
+                "may be silently ignored by NetBox. Use separate exact-match "
+                "queries with direct relationship filters like 'site_id'."
+            )
+
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
         if len(parts) == 2 and parts[-1] in valid_suffixes:
             continue
@@ -204,7 +211,8 @@ def validate_filters(filters: dict) -> None:
                                  empty, regex, iregex, lt, lte, gt, gte, in
                 Lookup support is field-specific. NetBox may silently ignore unsupported
                 lookups, including relationship-field patterns like *_id__in, and return
-                overly broad results. Prefer exact relationship filters such as
+                overly broad results. Relationship ID list filters like *_id__in are
+                rejected by this tool. Prefer exact relationship filters such as
                 {'vminterface_id': 621493}; for multiple related objects, run separate
                 exact-match queries or use a two-step query pattern.
 

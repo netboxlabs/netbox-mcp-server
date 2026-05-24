@@ -15,6 +15,12 @@ def test_lookup_suffixes_pass():
     validate_filters({"name__ic": "switch", "id__in": [1, 2, 3], "vid__gte": 100})
 
 
+def test_relationship_id_in_lookup_rejected():
+    """Relationship ID list filters are unsafe because NetBox may ignore them."""
+    with pytest.raises(ValueError, match="Relationship ID list filters"):
+        validate_filters({"vminterface_id__in": [621493, 631527]})
+
+
 def test_special_parameters_ignored():
     """Special parameters like limit, offset should be ignored."""
     validate_filters({"limit": 10, "offset": 5, "fields": "id,name", "q": "search"})
