@@ -95,7 +95,9 @@ class Settings(BaseSettings):
                 continue
             parsed = urlparse(origin)
             if not parsed.scheme or not parsed.netloc:
-                raise ValueError(f"Invalid CORS_ORIGIN: {origin!r} (expected format: http://host:port)")
+                raise ValueError(
+                    f"Invalid CORS_ORIGIN: {origin!r} (expected format: http://host:port)"
+                )
         return v
 
     def get_effective_config_summary(self) -> dict:
@@ -114,11 +116,13 @@ class Settings(BaseSettings):
             "log_level": self.log_level,
         }
         if self.transport == "http":
-            summary.update({
-                "host": self.host,
-                "port": self.port,
-                "cors_origins": self.cors_origins,
-            })
+            summary.update(
+                {
+                    "host": self.host,
+                    "port": self.port,
+                    "cors_origins": self.cors_origins,
+                }
+            )
         return summary
 
 

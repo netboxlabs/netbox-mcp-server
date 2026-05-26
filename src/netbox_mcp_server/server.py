@@ -59,7 +59,7 @@ def parse_cli_args() -> dict[str, Any]:
     parser.add_argument(
         "--cors-origins",
         action="append",
-        help='CORS origins (repeat flag). Use * to allow any origin (default: none)',
+        help="CORS origins (repeat flag). Use * to allow any origin (default: none)",
     )
 
     # Security settings
