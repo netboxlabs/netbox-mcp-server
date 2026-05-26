@@ -9,7 +9,11 @@
 
 This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP.
 
-The server is intentionally simple — easy to get started with, hard to misuse (read-only by default, no plugin surface), and easy to fork and adapt. Forking under Apache 2.0 is a first-class path for users who need capabilities beyond the project's scope.
+The server is intentionally simple: easy to get started with, hard to misuse (read-only by default, no plugin surface), and easy to fork and adapt. Forking under Apache 2.0 is a first-class path for users who need capabilities beyond the project's scope.
+
+## Community
+
+For chat, use cases, and general MCP discussion, join the NetBox community at [netdev.chat](https://netdev.chat). The **#ai** channel is the right home for MCP integrations, questions, and sharing use cases. Bugs and feature ideas specific to this server go in [issues](https://github.com/netboxlabs/netbox-mcp-server/issues).
 
 ## Tools
 
@@ -19,7 +23,7 @@ The server is intentionally simple — easy to get started with, hard to misuse 
 | get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
 | get_changelogs | Retrieves change history records (audit trail) based on filters |
 
-> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered — see [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope — see [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
+> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
 
 ## Usage
 
@@ -388,7 +392,7 @@ If discovery fails for any reason (network error, insufficient permissions, unsu
 
 ## Development
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing new features — we encourage filing an issue for discussion first to confirm scope fit.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing new features. We encourage filing an issue for discussion first to confirm scope fit.
 
 If your use case needs capabilities outside this project's scope, forking under Apache 2.0 is an actively supported path.
 
