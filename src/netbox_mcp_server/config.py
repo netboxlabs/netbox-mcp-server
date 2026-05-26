@@ -3,8 +3,9 @@
 import logging
 import logging.config
 from typing import Any, Literal
+from urllib.parse import urlparse
 
-from pydantic import AnyUrl, SecretStr, field_validator, model_validator
+from pydantic import AnyUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
 
     port: int = 8000
     """Port to bind HTTP server (only used when transport='http')"""
+
+    cors_origins: list[str] = Field(
+        default_factory=list,
+        description="Browser origins allowed for HTTP CORS. Use * to allow any origin.",
+    )
 
     # ===== Plugin Discovery Settings =====
     enable_plugin_discovery: bool = False
@@ -80,6 +86,20 @@ class Settings(BaseSettings):
         """No additional validation needed for HTTP transport; defaults are appropriate."""
         return self
 
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def validate_cors_origins(cls, v: object) -> list[str]:
+        """Ensure each CORS origin is a valid URL."""
+        for origin in v:
+            if origin == "*":
+                continue
+            parsed = urlparse(origin)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(
+                    f"Invalid CORS_ORIGIN: {origin!r} (expected format: http://host:port)"
+                )
+        return v
+
     def get_effective_config_summary(self) -> dict:
         """
         Return a non-secret summary of effective configuration for logging.
@@ -87,16 +107,23 @@ class Settings(BaseSettings):
         Returns:
             Dictionary with configuration values (secrets masked)
         """
-        return {
+        summary: dict[str, Any] = {
             "netbox_url": str(self.netbox_url),
             "netbox_token": "***REDACTED***",
             "transport": self.transport,
-            "host": self.host if self.transport == "http" else "N/A",
-            "port": self.port if self.transport == "http" else "N/A",
             "verify_ssl": self.verify_ssl,
             "enable_plugin_discovery": self.enable_plugin_discovery,
             "log_level": self.log_level,
         }
+        if self.transport == "http":
+            summary.update(
+                {
+                    "host": self.host,
+                    "port": self.port,
+                    "cors_origins": self.cors_origins,
+                }
+            )
+        return summary
 
 
 def configure_logging(
