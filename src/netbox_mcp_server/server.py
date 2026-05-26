@@ -129,21 +129,24 @@ netbox = None
 
 def validate_filters(filters: dict) -> None:
     """
-    Validate that filters don't use multi-hop relationship traversal.
+    Validate that filters don't use unsupported lookup suffixes or multi-hop
+    relationship traversal.
 
-    NetBox API does not support nested relationship queries like:
-    - device__site_id (filtering by related object's field)
-    - interface__device__site (multiple relationship hops)
+    NetBox API does not support:
+    - __in suffix (pass a list as the field value instead: {'id': [1, 2, 3]})
+    - nested relationship queries like device__site_id or interface__device__site
 
     Valid patterns:
     - Direct field filters: site_id, name, status
+    - List values for multi-value filters: {'site_id': [1, 2]}
     - Lookup expressions supported by the target NetBox field: name__ic, id__gt
 
     Args:
         filters: Dictionary of filter parameters
 
     Raises:
-        ValueError: If filter uses invalid multi-hop relationship traversal
+        ValueError: If filter uses an unsupported lookup suffix or multi-hop
+                    relationship traversal
     """
     valid_suffixes = {
         "n",
@@ -162,7 +165,6 @@ def validate_filters(filters: dict) -> None:
         "lte",
         "gt",
         "gte",
-        "in",
     }
 
     for filter_name in filters:
@@ -175,11 +177,12 @@ def validate_filters(filters: dict) -> None:
 
         parts = filter_name.split("__")
 
-        if len(parts) == 2 and parts[0].endswith("_id") and parts[-1] == "in":
+        if len(parts) == 2 and parts[-1] == "in":
+            base = parts[0]
             raise ValueError(
-                f"Invalid filter '{filter_name}': Relationship ID list filters "
-                "may be silently ignored by NetBox. Use separate exact-match "
-                "queries with direct relationship filters like 'site_id'."
+                f"Invalid filter '{filter_name}': '__in' lookup suffix is not "
+                "supported and may be silently ignored by NetBox. "
+                f"Pass a list to the field directly instead: {{'{base}': [1, 2, 3]}}"
             )
 
         # Allow field__suffix pattern (e.g., name__ic, id__gt)
@@ -208,13 +211,11 @@ def validate_filters(filters: dict) -> None:
                 Invalid: Multi-hop like {'device__site_id': 1} - NOT supported
 
                 Lookup suffixes: n, ic, nic, isw, nisw, iew, niew, ie, nie,
-                                 empty, regex, iregex, lt, lte, gt, gte, in
+                                 empty, regex, iregex, lt, lte, gt, gte
                 Lookup support is field-specific. NetBox may silently ignore unsupported
-                lookups, including relationship-field patterns like *_id__in, and return
-                overly broad results. Relationship ID list filters like *_id__in are
-                rejected by this tool. Prefer exact relationship filters such as
-                {'vminterface_id': 621493}; for multiple related objects, run separate
-                exact-match queries or use a two-step query pattern.
+                lookups and return overly broad results. The '__in' suffix is not supported
+                and is rejected by this tool. For multiple values, pass a list as the field
+                value directly: {'vminterface_id': [621493, 631527]} or {'id': [1, 2, 3]}.
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {'name': 'NYC'})

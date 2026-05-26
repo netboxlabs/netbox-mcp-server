@@ -12,13 +12,19 @@ def test_direct_field_filters_pass():
 
 def test_lookup_suffixes_pass():
     """Lookup suffixes should pass validation."""
-    validate_filters({"name__ic": "switch", "id__in": [1, 2, 3], "vid__gte": 100})
+    validate_filters({"name__ic": "switch", "vid__gte": 100})
 
 
 def test_relationship_id_in_lookup_rejected():
     """Relationship ID list filters are unsafe because NetBox may ignore them."""
-    with pytest.raises(ValueError, match="Relationship ID list filters"):
+    with pytest.raises(ValueError, match="'__in' lookup suffix is not supported"):
         validate_filters({"vminterface_id__in": [621493, 631527]})
+
+
+def test_object_id_in_lookup_rejected():
+    """Even id__in is silently ignored by NetBox on many endpoints."""
+    with pytest.raises(ValueError, match=r"'id': \[1, 2, 3\]"):
+        validate_filters({"id__in": [1, 2, 3]})
 
 
 def test_special_parameters_ignored():

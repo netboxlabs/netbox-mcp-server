@@ -13,6 +13,6 @@ def test_get_objects_description_warns_about_field_specific_lookup_support():
 
     assert "Lookup support is field-specific" in description
     assert "silently ignore unsupported" in description
-    assert "*_id__in" in description
-    assert "Relationship ID list filters" in description
+    assert "'__in' suffix is not supported" in description
     assert "{'name__ic': 'switch', 'id__in'" not in description
+    assert "id__in': [1, 2, 3]" not in description
