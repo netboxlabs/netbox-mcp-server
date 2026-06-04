@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import hmac
 import logging
 import sys
 from typing import Annotated, Any
@@ -8,11 +9,35 @@ import httpx
 from fastmcp import FastMCP
 from pydantic import Field
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from netbox_mcp_server.config import Settings, configure_logging
 from netbox_mcp_server.netbox_client import NetBoxRestClient
 from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
+
+
+class BearerTokenMiddleware(BaseHTTPMiddleware):
+    """Enforce Bearer token authentication on the HTTP transport endpoint."""
+
+    def __init__(self, app: Any, token: str) -> None:
+        super().__init__(app)
+        self._token = token
+
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
+        if request.method == "OPTIONS":
+            # Allow CORS preflight through unconditionally
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        provided = auth[7:] if auth.startswith("Bearer ") else ""
+        if not hmac.compare_digest(provided, self._token):
+            return JSONResponse(
+                {"error": "Unauthorized", "detail": "Valid Bearer token required"},
+                status_code=401,
+            )
+        return await call_next(request)
 
 
 def parse_cli_args() -> dict[str, Any]:
@@ -728,6 +753,9 @@ def main() -> None:
             mcp.run(transport="stdio")
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
+            # CORSMiddleware runs first so 401 responses include CORS headers,
+            # allowing browser-based clients to read the error response.
+            # BearerTokenMiddleware runs second to enforce authentication.
             middleware = [
                 Middleware(
                     CORSMiddleware,
@@ -741,6 +769,13 @@ def main() -> None:
                     expose_headers=["mcp-session-id"],
                 )
             ]
+            if settings.mcp_auth_token:
+                middleware.append(
+                    Middleware(
+                        BearerTokenMiddleware,
+                        token=settings.mcp_auth_token.get_secret_value(),
+                    )
+                )
             mcp.run(transport="http", host=settings.host, port=settings.port, middleware=middleware)
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")

@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     verify_ssl: bool = True
     """Whether to verify SSL certificates when connecting to NetBox"""
 
+    mcp_auth_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Bearer token required to access the HTTP transport endpoint. "
+            "If set, all requests must include 'Authorization: Bearer <token>'. "
+            "Has no effect when transport=stdio."
+        ),
+    )
+    """Optional bearer token to protect the HTTP transport endpoint"""
+
     # ===== Observability Settings =====
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     """Logging verbosity level"""
@@ -121,6 +131,7 @@ class Settings(BaseSettings):
                     "host": self.host,
                     "port": self.port,
                     "cors_origins": self.cors_origins,
+                    "mcp_auth_token": "***REDACTED***" if self.mcp_auth_token else None,
                 }
             )
         return summary
