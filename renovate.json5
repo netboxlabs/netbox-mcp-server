@@ -9,6 +9,10 @@
   // Bump lower bounds in pyproject.toml even when the constraint already allows the new version
   rangeStrategy: 'bump',
 
+  // Org-standard stability window — applies to every update not matched by a
+  // more specific packageRule below (rule-level values override this).
+  minimumReleaseAge: '7 days',
+
   packageRules: [
     // Don't bump requires-python — it defines minimum supported version, not installed version
     {
