@@ -175,6 +175,7 @@ The server supports multiple configuration sources with the following precedence
 | `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
+| `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
 | `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
@@ -238,6 +239,8 @@ TRANSPORT=stdio
 # HTTP Transport Settings (only used if TRANSPORT=http)
 # HOST=127.0.0.1
 # PORT=8000
+# Bearer token required on the HTTP endpoint. When unset, the endpoint is unauthenticated.
+# MCP_AUTH_TOKEN=a-strong-random-token
 
 # Security (optional, defaults to true)
 VERIFY_SSL=true
@@ -303,11 +306,14 @@ docker run --rm \
   -e TRANSPORT=http \
   -e HOST=0.0.0.0 \
   -e PORT=8000 \
+  -e MCP_AUTH_TOKEN=<a-strong-random-token> \
   -p 8000:8000 \
   netbox-mcp-server:latest
 ```
 
 > **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
+
+> **⚠️ Security:** The HTTP transport has **no authentication** unless you set `MCP_AUTH_TOKEN`. Binding to `HOST=0.0.0.0` exposes read access to all NetBox data your token can see to anyone who can reach the port. Set a strong `MCP_AUTH_TOKEN` (clients then send `Authorization: Bearer <token>`) and terminate TLS at a reverse proxy or gateway before exposing the server to a network. A bearer token sent over plain HTTP can be intercepted, so TLS is required for real deployments.
 
 **Connecting to NetBox on your host machine:**
 
@@ -321,6 +327,7 @@ docker run --rm \
   -e TRANSPORT=http \
   -e HOST=0.0.0.0 \
   -e PORT=8000 \
+  -e MCP_AUTH_TOKEN=<a-strong-random-token> \
   -p 8000:8000 \
   netbox-mcp-server:latest
 ```
@@ -335,6 +342,7 @@ docker run --rm \
   -e NETBOX_TOKEN=<your-api-token> \
   -e TRANSPORT=http \
   -e HOST=0.0.0.0 \
+  -e MCP_AUTH_TOKEN=<a-strong-random-token> \
   -e LOG_LEVEL=DEBUG \
   -e VERIFY_SSL=false \
   -p 8000:8000 \
