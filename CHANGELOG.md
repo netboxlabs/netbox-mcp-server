@@ -2,6 +2,62 @@
 
 <!-- version list -->
 
+## v1.2.1 (2026-06-17)
+
+### Bug Fixes
+
+- **deps**: Bump cryptography, pyjwt, python-multipart for security advisories
+  ([#161](https://github.com/netboxlabs/netbox-mcp-server/pull/161),
+  [`238f423`](https://github.com/netboxlabs/netbox-mcp-server/commit/238f42338977123d9cb90afc9121f9b36b368799))
+
+- **deps**: Update non-major python dependencies
+  ([#150](https://github.com/netboxlabs/netbox-mcp-server/pull/150),
+  [`8b5fd4b`](https://github.com/netboxlabs/netbox-mcp-server/commit/8b5fd4b05d55b7b13c0eb8f73e9e404faed97971))
+
+- **deps**: Update non-major python dependencies
+  ([#135](https://github.com/netboxlabs/netbox-mcp-server/pull/135),
+  [`6d4c13b`](https://github.com/netboxlabs/netbox-mcp-server/commit/6d4c13b2decb7311a43a8daeb305d8f15c3b6fcd))
+
+- **transport**: Add optional bearer token authentication for HTTP transport
+  ([#162](https://github.com/netboxlabs/netbox-mcp-server/pull/162),
+  [`17df465`](https://github.com/netboxlabs/netbox-mcp-server/commit/17df4653ba7be44d3e7b6650e7f9fdf54b860520))
+
+### Chores
+
+- **deps**: Bump gitpython to 3.1.50 and pygments to 2.20.0
+  ([`3d08421`](https://github.com/netboxlabs/netbox-mcp-server/commit/3d084213bf5cbcf1bd4259fe4f2c1ef59b49ecad))
+
+- **deps**: Update non-major docker dependencies
+  ([#160](https://github.com/netboxlabs/netbox-mcp-server/pull/160),
+  [`9a0316f`](https://github.com/netboxlabs/netbox-mcp-server/commit/9a0316f6a3c334413843569f40f1e82bd3aad65c))
+
+- **deps**: Update non-major github actions
+  ([#158](https://github.com/netboxlabs/netbox-mcp-server/pull/158),
+  [`6658b92`](https://github.com/netboxlabs/netbox-mcp-server/commit/6658b9263b0e48cdd391414f5fc77412bac62f95))
+
+- **deps**: Update sigstore/cosign-installer action to v4
+  ([#141](https://github.com/netboxlabs/netbox-mcp-server/pull/141),
+  [`1a6bfd6`](https://github.com/netboxlabs/netbox-mcp-server/commit/1a6bfd688c66b28ab54746c776b3e8ff3a1c4cfc))
+
+- **renovate**: Add top-level minimumReleaseAge for full coverage
+  ([#156](https://github.com/netboxlabs/netbox-mcp-server/pull/156),
+  [`a06a2e4`](https://github.com/netboxlabs/netbox-mcp-server/commit/a06a2e49e8d65131fe883e7e60ebd35eef691d24))
+
+- **renovate**: Extend the central org preset
+  ([#157](https://github.com/netboxlabs/netbox-mcp-server/pull/157),
+  [`9638a48`](https://github.com/netboxlabs/netbox-mcp-server/commit/9638a487c22db555e65c706dc8f4f127b0c9cf07))
+
+- **renovate**: Raise stability window to 7-day org standard
+  ([#154](https://github.com/netboxlabs/netbox-mcp-server/pull/154),
+  [`3adb98c`](https://github.com/netboxlabs/netbox-mcp-server/commit/3adb98cc65fd9b7cabb2a686010906a60f6b16b8))
+
+### Documentation
+
+- Add Community section and remove em dashes
+  ([#149](https://github.com/netboxlabs/netbox-mcp-server/pull/149),
+  [`6c97e7e`](https://github.com/netboxlabs/netbox-mcp-server/commit/6c97e7e779d56a75931a17c915a6aeff24f9fa92))
+
+
 ## v1.2.0 (2026-05-26)
 
 ### Bug Fixes
