@@ -40,6 +40,16 @@ class Settings(BaseSettings):
         description="Browser origins allowed for HTTP CORS. Use * to allow any origin.",
     )
 
+    mcp_auth_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Optional bearer token required on the HTTP transport endpoint. "
+            "When set, requests to the MCP endpoint must send "
+            "'Authorization: Bearer <token>'. Only applied when transport='http'."
+        ),
+    )
+    """Optional bearer token protecting the HTTP transport endpoint (treated as secret)"""
+
     # ===== Plugin Discovery Settings =====
     enable_plugin_discovery: bool = False
     """Whether to auto-discover plugin object types from NetBox at startup"""
@@ -69,6 +79,20 @@ class Settings(BaseSettings):
         """Ensure port is in valid range."""
         if not (0 < v < 65536):
             raise ValueError(f"Port must be between 1 and 65535, got {v}")
+        return v
+
+    @field_validator("mcp_auth_token", mode="after")
+    @classmethod
+    def normalize_auth_token(cls, v: SecretStr | None) -> SecretStr | None:
+        """Treat an empty or whitespace-only token as unset.
+
+        A present-but-empty value (e.g. an unpopulated container secret
+        rendering as MCP_AUTH_TOKEN=) would otherwise build a verifier that
+        accepts an empty bearer while the server logs that auth is enabled.
+        Normalizing to None here keeps every consumer in agreement.
+        """
+        if v is not None and not v.get_secret_value().strip():
+            return None
         return v
 
     @field_validator("netbox_url")
@@ -121,6 +145,7 @@ class Settings(BaseSettings):
                     "host": self.host,
                     "port": self.port,
                     "cors_origins": self.cors_origins,
+                    "mcp_auth_token": "***REDACTED***" if self.mcp_auth_token else None,
                 }
             )
         return summary

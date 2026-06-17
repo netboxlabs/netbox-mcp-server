@@ -60,6 +60,55 @@ def test_settings_masks_secrets_in_summary():
     assert "super-secret-token" not in str(summary)
 
 
+# ===== MCP Auth Token Tests =====
+
+
+def test_auth_token_read_from_env():
+    """MCP_AUTH_TOKEN env var populates the secret field."""
+    with patch.dict(
+        "os.environ",
+        {
+            "NETBOX_URL": "https://netbox.example.com/",
+            "NETBOX_TOKEN": "tok",
+            "MCP_AUTH_TOKEN": "bearer-secret",
+        },
+        clear=True,
+    ):
+        settings = Settings(_env_file=None)
+
+    assert settings.mcp_auth_token is not None
+    assert settings.mcp_auth_token.get_secret_value() == "bearer-secret"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_auth_token_normalized_to_none(blank):
+    """Empty or whitespace-only tokens are treated as unset (guards fail-open)."""
+    settings = Settings(
+        netbox_url="https://netbox.example.com/",
+        netbox_token="tok",
+        mcp_auth_token=blank,
+        _env_file=None,
+    )
+
+    assert settings.mcp_auth_token is None
+
+
+def test_auth_token_masked_in_summary():
+    """A configured auth token is redacted in the HTTP config summary."""
+    settings = Settings(
+        netbox_url="https://netbox.example.com/",
+        netbox_token="tok",
+        transport="http",
+        mcp_auth_token="bearer-secret",
+        _env_file=None,
+    )
+
+    summary = settings.get_effective_config_summary()
+
+    assert summary["mcp_auth_token"] == "***REDACTED***"
+    assert "bearer-secret" not in str(summary)
+
+
 # ===== CLI Argument Parsing Tests =====
 
 
@@ -86,6 +135,18 @@ def test_parse_cli_args_multiple():
         assert result["port"] == 9000
         assert result["log_level"] == "DEBUG"
         assert result["verify_ssl"] is False
+    finally:
+        sys.argv = original_argv
+
+
+def test_parse_cli_args_mcp_auth_token():
+    """--mcp-auth-token maps to the mcp_auth_token overlay key (typo guard)."""
+
+    original_argv = sys.argv
+    try:
+        sys.argv = ["server.py", "--mcp-auth-token", "bearer-secret"]
+        result = parse_cli_args()
+        assert result["mcp_auth_token"] == "bearer-secret"
     finally:
         sys.argv = original_argv
 
