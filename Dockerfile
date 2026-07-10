@@ -1,4 +1,5 @@
-FROM python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81 AS builder
+ARG REGISTRY=registry-1.docker.io
+FROM ${REGISTRY}/python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81 AS builder
 
 RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
     && pip install --root-user-action=ignore --no-cache-dir uv
@@ -18,7 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 
-FROM python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81
+FROM ${REGISTRY}/python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81
 LABEL org.opencontainers.image.title="NetBox MCP Server" \
       org.opencontainers.image.description="A read-only MCP server for NetBox" \
       org.opencontainers.image.url="https://github.com/netboxlabs/netbox-mcp-server" \

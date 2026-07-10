@@ -170,15 +170,16 @@ The server supports multiple configuration sources with the following precedence
 
 | Setting | Type | Default | Required | Description |
 |---------|------|---------|----------|-------------|
-| `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
-| `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
-| `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
-| `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
-| `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
-| `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. |
-| `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
-| `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
-| `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
+| `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/). |
+| `NETBOX_TOKEN` | String | - | Yes\* | API token for authentication. \*Not required when `NETBOX_TOKEN_PASSTHROUGH=true`; otherwise used as a fallback for requests without their own token. |
+| `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol. |
+| `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server. |
+| `PORT` | Integer | `8000` | If HTTP | Port for HTTP server. |
+| `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. Mutually exclusive with `NETBOX_TOKEN_PASSTHROUGH`. |
+| `NETBOX_TOKEN_PASSTHROUGH` | Boolean | `false` | No | HTTP transport only. Forwards each reques's own `Authorization: Bearer <token>` header to Netbox as its API token, so Netbox enforces per-user permissions instead of single shared `NETBOX_TOKEN`. See [Token Passthrough](#token-passthrough-per-user-netbox-tokens). |
+| `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates. |
+| `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup. |
+| `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity. |
 
 ### Transport Examples
 
@@ -241,6 +242,9 @@ TRANSPORT=stdio
 # PORT=8000
 # Bearer token required on the HTTP endpoint. When unset, the endpoint is unauthenticated.
 # MCP_AUTH_TOKEN=a-strong-random-token
+# Forward each request's own Authorization bearer token to Netbox as its API
+# token instead of NETBOX_TOKEN. Mutually exclusive with MCP_AUTH_TOKEN.
+# NETBOX_TOKEN_PASSTHROUGH=true
 
 # Security (optional, defaults to true)
 VERIFY_SSL=true
@@ -250,6 +254,37 @@ VERIFY_SSL=true
 
 # Logging (optional, defaults to INFO)
 LOG_LEVEL=INFO
+```
+
+### Token Passthrough (Per-User NetBox Tokens)
+
+By default, the HTTP transport uses a single `NETBOX_TOKEN` for every request, so all clients share one NetBox identity and permission set. Setting
+`NETBOX_TOKEN_PASSTHROUGH=true` instead forwards each request's own `Authorization: Bearer <token>` header to NetBox as its API token, so NetBox authenticates and authorizes each
+caller individually:
+
+```bash
+# Using environment variables
+export NETBOX_URL=https://netbox.example.com/
+export NETBOX_TOKEN_PASSTHROUGH=true
+export TRANSPORT=http
+
+uv run netbox-mcp-server
+```
+
+Clients then connect with their own personal NetBox API token, e.g.:
+
+```json
+{
+    "mcpServers": {
+        "netbox": {
+            "type": "http",
+            "url": "https://netbox.example.com/mcp/",
+            "headers": {
+                "Authorization": "Bearer <your-personal-netbox-token>"
+            }
+        }
+    }
+}
 ```
 
 ### CLI Arguments

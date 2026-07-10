@@ -6,15 +6,22 @@ import logging
 import sys
 from typing import Annotated, Any
 
-import httpx
+import httpx2
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
 from pydantic import Field, SecretStr
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from netbox_mcp_server.config import Settings, configure_logging
-from netbox_mcp_server.netbox_client import NetBoxRestClient
+from netbox_mcp_server.netbox_client import (
+    NetBoxRestClient,
+    reset_forward_token,
+    set_forward_token,
+)
 from netbox_mcp_server.netbox_types import NETBOX_OBJECT_TYPES
 
 
@@ -72,6 +79,16 @@ def parse_cli_args() -> dict[str, Any]:
             "(prefer the MCP_AUTH_TOKEN env var; default: none)"
         ),
     )
+    parser.add_argument(
+        "--netbox-token-passthrough",
+        action="store_true",
+        default=None,
+        dest="netbox_token_passthrough",
+        help=(
+            "Forward each request's Authorization bearer token to Netbox as its "
+            "API token, instead of NETBOXT_TOKEN (HTTP transport only)"
+        )
+    )
 
     # Security settings
     ssl_group = parser.add_mutually_exclusive_group()
@@ -123,6 +140,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["cors_origins"] = args.cors_origins
     if args.mcp_auth_token is not None:
         overlay["mcp_auth_token"] = args.mcp_auth_token
+    if args.netbox_token_passthrough is not None:
+        overlay["netbox_token_passthrough"] = args.netbox_token_passthrough
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
@@ -178,6 +197,26 @@ def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
         return None
     return BearerTokenVerifier(token.get_secret_value())
 
+class TokenPassthroughMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware that intercepts incoming requests to extract the Bearer token from
+    the Authorization header and ensures it is passed downstream through the
+    request context. It guarantees that this forward token is properly reset in a
+    finally block, preventing token leakage or incorrect state for subsequent requests.
+
+    This pattern allows NetBox's API key/token used during local testing
+    (if provided via Bearer authorization header) to be passed securely across
+    internal service calls without being visible in the request body or logs.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        auth_header = request.headers.get("authorization", "")
+        token = auth_header[len("Bearer ") :].strip() if auth_header.startswith("Bearer ") else None
+        reset_handle = set_forward_token(token or None)
+        try:
+            return await call_next(request)
+        finally:
+            reset_forward_token(reset_handle)
 
 # Default object types for global search
 DEFAULT_SEARCH_TYPES = [
@@ -683,7 +722,7 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 break
             offset += limit
 
-    except (httpx.HTTPError, ValueError, KeyError) as e:
+    except (httpx2.HTTPError, ValueError, KeyError) as e:
         logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
         return {}
 
@@ -767,7 +806,7 @@ def main() -> None:
     try:
         netbox = NetBoxRestClient(
             url=str(settings.netbox_url),
-            token=settings.netbox_token.get_secret_value(),
+            token=settings.netbox_token.get_secret_value() if settings.netbox_token else "",
             verify_ssl=settings.verify_ssl,
         )
         logger.debug("NetBox client initialized successfully")
@@ -812,6 +851,12 @@ def main() -> None:
                     expose_headers=["mcp-session-id"],
                 )
             ]
+            if settings.netbox_token_passthrough:
+                middleware.append(Middleware(TokenPassthroughMiddleware))
+                logger.info(
+                    "Netbox token passthrough enabled: each request's own Authorization "
+                    "bearer token will be forwarded to Netbox as its API token."
+                )
             mcp.run(transport="http", host=settings.host, port=settings.port, middleware=middleware)
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
