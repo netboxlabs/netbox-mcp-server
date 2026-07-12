@@ -1,4 +1,4 @@
-ARG REGISTRY=registry-1.docker.io
+ARG REGISTRY=docker.io
 FROM ${REGISTRY}/python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81 AS builder
 
 RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
