@@ -46,7 +46,7 @@ def parse_cli_args() -> dict[str, Any]:
     parser.add_argument(
         "--transport",
         type=str,
-        choices=["stdio", "http"],
+        choices=["stdio", "http", "sse"],
         help="MCP transport protocol (default: stdio)",
     )
     parser.add_argument(
@@ -785,6 +785,9 @@ def main() -> None:
         if settings.transport == "stdio":
             logger.info("Starting stdio transport")
             mcp.run(transport="stdio")
+        elif settings.transport == "sse":
+            logger.info(f"Starting SSE transport on {settings.host}:{settings.port}")
+            mcp.run(transport="sse", host=settings.host, port=settings.port)
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
             auth = build_http_auth(settings.mcp_auth_token)

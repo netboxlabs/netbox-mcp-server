@@ -172,7 +172,7 @@ The server supports multiple configuration sources with the following precedence
 |---------|------|---------|----------|-------------|
 | `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
 | `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
-| `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
+| `TRANSPORT` | `stdio` \| `http` \| `sse` | `stdio` | No | MCP transport protocol |
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. |
