@@ -26,14 +26,14 @@ class Settings(BaseSettings):
     """API token for NetBox authentication (treated as secret)"""
 
     # ===== Transport Settings =====
-    transport: Literal["stdio", "http"] = "stdio"
+    transport: Literal["stdio", "http", "sse"] = "stdio"
     """MCP transport protocol to use (stdio for Claude Desktop, http for web clients)"""
 
     host: str = "127.0.0.1"
-    """Host address to bind HTTP server (only used when transport='http')"""
+    """Host address to bind HTTP server (only used when transport='http/sse')"""
 
     port: int = 8000
-    """Port to bind HTTP server (only used when transport='http')"""
+    """Port to bind HTTP server (only used when transport='http/sse')"""
 
     cors_origins: list[str] = Field(
         default_factory=list,
