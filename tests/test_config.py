@@ -160,7 +160,7 @@ def test_configure_logging_suppresses_http_clients():
     configure_logging("INFO")
 
     urllib3_logger = logging.getLogger("urllib3")
-    httpx_logger = logging.getLogger("httpx")
+    httpx_logger = logging.getLogger("httpx2")
 
     assert urllib3_logger.level == logging.WARNING
     assert httpx_logger.level == logging.WARNING
@@ -172,7 +172,7 @@ def test_configure_logging_shows_http_clients_at_debug():
 
     root_logger = logging.getLogger()
     urllib3_logger = logging.getLogger("urllib3")
-    httpx_logger = logging.getLogger("httpx")
+    httpx_logger = logging.getLogger("httpx2")
 
     assert root_logger.level == logging.DEBUG
     assert urllib3_logger.level == logging.DEBUG

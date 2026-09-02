@@ -80,7 +80,7 @@ def test_unauthenticated_transport_allows_requests() -> None:
 
 def test_non_ascii_bearer_is_rejected_not_errored() -> None:
     # A non-ASCII bearer must be rejected, not raise (compare_digest rejects
-    # non-ASCII str). Driven directly: the httpx TestClient blocks such headers.
+    # non-ASCII str). Driven directly: the httpx2 TestClient blocks such headers.
     verifier = build_http_auth(SecretStr(TOKEN))
     assert verifier is not None
     assert asyncio.run(verifier.verify_token("\xff")) is None

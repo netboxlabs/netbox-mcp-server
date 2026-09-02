@@ -6,7 +6,7 @@ import logging
 import sys
 from typing import Annotated, Any
 
-import httpx
+import httpx2
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
 from pydantic import Field, SecretStr
@@ -683,7 +683,7 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 break
             offset += limit
 
-    except (httpx.HTTPError, ValueError, KeyError) as e:
+    except (httpx2.HTTPError, ValueError, KeyError) as e:
         logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
         return {}
 
