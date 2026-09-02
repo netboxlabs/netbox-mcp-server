@@ -8,7 +8,7 @@ This module provides a base class for NetBox client implementations and a REST A
 import abc
 from typing import Any
 
-import httpx
+import httpx2
 
 
 class NetBoxClientBase(abc.ABC):
@@ -175,7 +175,7 @@ class NetBoxRestClient(NetBoxClientBase):
         self.token = token
         self.verify_ssl = verify_ssl
         auth_scheme = "Bearer" if token.startswith("nbt_") else "Token"
-        self.session = httpx.Client(verify=self.verify_ssl)
+        self.session = httpx2.Client(verify=self.verify_ssl)
         self.session.headers.update(
             {
                 "Authorization": f"{auth_scheme} {token}",
@@ -217,7 +217,7 @@ class NetBoxRestClient(NetBoxClientBase):
                 - results: Array of objects for this page
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self.session.get(url, params=params)
@@ -243,7 +243,7 @@ class NetBoxRestClient(NetBoxClientBase):
             The created object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
         response = self.session.post(url, json=data)
@@ -263,7 +263,7 @@ class NetBoxRestClient(NetBoxClientBase):
             The updated object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self.session.patch(url, json=data)
@@ -282,7 +282,7 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self.session.delete(url)
@@ -301,7 +301,7 @@ class NetBoxRestClient(NetBoxClientBase):
             List of created objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
         response = self.session.post(url, json=data)
@@ -320,7 +320,7 @@ class NetBoxRestClient(NetBoxClientBase):
             List of updated objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
         response = self.session.patch(url, json=data)
@@ -339,7 +339,7 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
         data = [{"id": id} for id in ids]

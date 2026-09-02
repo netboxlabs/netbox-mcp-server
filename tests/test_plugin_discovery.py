@@ -6,7 +6,7 @@ plugin models and returns them in the same format as NETBOX_OBJECT_TYPES.
 
 from unittest.mock import MagicMock
 
-import httpx
+import httpx2
 import pytest
 
 from netbox_mcp_server.server import discover_plugin_types
@@ -229,7 +229,9 @@ def test_stops_when_next_missing(client):
 
 def test_returns_empty_dict_on_http_error(client):
     """HTTP errors are swallowed and empty dict returned."""
-    client.get.side_effect = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
+    client.get.side_effect = httpx2.HTTPStatusError(
+        "500", request=MagicMock(), response=MagicMock()
+    )
 
     result = discover_plugin_types(client)
 
@@ -238,7 +240,7 @@ def test_returns_empty_dict_on_http_error(client):
 
 def test_returns_empty_dict_on_network_error(client):
     """Transport errors (timeouts, DNS, connection refused) are swallowed."""
-    client.get.side_effect = httpx.ConnectError("connection refused")
+    client.get.side_effect = httpx2.ConnectError("connection refused")
 
     result = discover_plugin_types(client)
 
