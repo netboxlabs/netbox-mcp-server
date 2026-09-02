@@ -181,7 +181,7 @@ def configure_logging(
             "urllib3": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
-            "httpx": {
+            "httpx2": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
         },

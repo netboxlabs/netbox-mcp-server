@@ -9,8 +9,8 @@ description = "A read-only MCP server for NetBox"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
-    "httpx>=0.28.1",
-    "fastmcp>=3.4.2,<4",
+    "httpx2>=2.12.0",
+    "fastmcp>=4.0.0,<5",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
 ]
@@ -46,6 +46,9 @@ changelog_file = "CHANGELOG.md"
 line-length = 100
 indent-width = 4
 target-version = "py313"
+# Ruff 0.16 began formatting code blocks inside Markdown. The docs use expanded
+# call examples for readability, so they are kept out of the formatter.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = [

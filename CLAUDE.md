@@ -10,8 +10,8 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 
 - **Python**: >=3.11, <3.15
 - **Package Manager**: uv
-- **MCP Framework**: FastMCP >=3.0.0
-- **HTTP Client**: httpx
+- **MCP Framework**: FastMCP >=4.0.0
+- **HTTP Client**: httpx2
 - **NetBox API**: REST API via token authentication
 
 ## Project Structure
