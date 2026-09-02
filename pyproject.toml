@@ -46,6 +46,9 @@ changelog_file = "CHANGELOG.md"
 line-length = 100
 indent-width = 4
 target-version = "py313"
+# Ruff 0.16 began formatting code blocks inside Markdown. The docs use expanded
+# call examples for readability, so they are kept out of the formatter.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = [
