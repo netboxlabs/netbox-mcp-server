@@ -1,4 +1,4 @@
 # CODEOWNERS - Require review from maintainers for critical files
-/.github/workflows/ @abubnalitic-nbl @ltucker
-/pyproject.toml @abubnalitic-nbl @ltucker
-/.github/CODEOWNERS @abubnalitic-nbl @ltucker
+/.github/workflows/ @netboxlabs/eng-ai
+/pyproject.toml @netboxlabs/eng-ai
+/.github/CODEOWNERS @netboxlabs/eng-ai
