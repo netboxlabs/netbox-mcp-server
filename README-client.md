@@ -28,9 +28,7 @@ from client import NetBoxRestClient
 
 # Initialize the client
 client = NetBoxRestClient(
-    url="https://netbox.example.com",
-    token="your_api_token_here",
-    verify_ssl=True
+    url="https://netbox.example.com", token="your_api_token_here", verify_ssl=True
 )
 
 # Get all sites
@@ -46,31 +44,22 @@ print(f"Site name: {site.get('name')}")
 page = 1
 limit = 50
 while True:
-    sites_page = client.get("dcim/sites", params={
-        "limit": limit,
-        "offset": (page - 1) * limit
-    })
+    sites_page = client.get("dcim/sites", params={"limit": limit, "offset": (page - 1) * limit})
     if not sites_page:
         break
-        
+
     print(f"Processing page {page} with {len(sites_page)} sites")
     for site in sites_page:
         print(f"Site: {site.get('name')}")
-        
+
     page += 1
 
 # Create a new site
-new_site = client.create("dcim/sites", {
-    "name": "New Site",
-    "slug": "new-site",
-    "status": "active"
-})
+new_site = client.create("dcim/sites", {"name": "New Site", "slug": "new-site", "status": "active"})
 print(f"Created site: {new_site.get('name')} (ID: {new_site.get('id')})")
 
 # Update a site
-updated_site = client.update("dcim/sites", id=1, data={
-    "description": "Updated description"
-})
+updated_site = client.update("dcim/sites", id=1, data={"description": "Updated description"})
 
 # Delete a site
 success = client.delete("dcim/sites", id=1)
@@ -78,15 +67,21 @@ if success:
     print("Site deleted successfully")
 
 # Bulk operations
-new_sites = client.bulk_create("dcim/sites", [
-    {"name": "Site 1", "slug": "site-1", "status": "active"},
-    {"name": "Site 2", "slug": "site-2", "status": "active"}
-])
+new_sites = client.bulk_create(
+    "dcim/sites",
+    [
+        {"name": "Site 1", "slug": "site-1", "status": "active"},
+        {"name": "Site 2", "slug": "site-2", "status": "active"},
+    ],
+)
 
-updated_sites = client.bulk_update("dcim/sites", [
-    {"id": 1, "description": "Updated description 1"},
-    {"id": 2, "description": "Updated description 2"}
-])
+updated_sites = client.bulk_update(
+    "dcim/sites",
+    [
+        {"id": 1, "description": "Updated description 1"},
+        {"id": 2, "description": "Updated description 2"},
+    ],
+)
 
 success = client.bulk_delete("dcim/sites", ids=[1, 2])
 ```
@@ -99,21 +94,22 @@ The `NetBoxClientBase` abstract base class can be extended to create an ORM-base
 from client import NetBoxClientBase
 from django.db import transaction
 
+
 class NetBoxOrmClient(NetBoxClientBase):
     """
     NetBox client implementation using the ORM directly.
     This would be used within a NetBox plugin.
     """
-    
+
     def __init__(self):
         # No authentication needed as this would run within NetBox
         pass
-    
+
     def get(self, endpoint, id=None, params=None):
         # Implementation would use Django ORM to fetch objects
         # Example (not implemented)
         pass
-    
+
     # Other methods would be implemented similarly
 ```
 

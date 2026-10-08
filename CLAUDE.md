@@ -119,6 +119,7 @@ def netbox_get_objects(object_type: str, filters: dict) -> list[dict]:
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
     return netbox.get(NETBOX_OBJECT_TYPES[object_type], params=filters)
 
+
 # ❌ Avoid: Missing types, generic names, silent failures, no docstrings
 def get_stuff(t, f):
     try:
@@ -330,24 +331,15 @@ These examples show how LLMs interact with MCP tools (conceptual format):
 
 ```python
 # Get all devices in a site
-mcp_tool("netbox_get_objects", {
-    "object_type": "devices",
-    "filters": {"site": "equinix-dc14"}
-})
+mcp_tool("netbox_get_objects", {"object_type": "devices", "filters": {"site": "equinix-dc14"}})
 
 # Get specific device by ID
-mcp_tool("netbox_get_object_by_id", {
-    "object_type": "devices",
-    "object_id": 123
-})
+mcp_tool("netbox_get_object_by_id", {"object_type": "devices", "object_id": 123})
 
 # Find recent changes
-mcp_tool("netbox_get_changelogs", {
-    "filters": {
-        "action": "update",
-        "time_after": "2025-01-01T00:00:00Z"
-    }
-})
+mcp_tool(
+    "netbox_get_changelogs", {"filters": {"action": "update", "time_after": "2025-01-01T00:00:00Z"}}
+)
 ```
 
 ## Troubleshooting
