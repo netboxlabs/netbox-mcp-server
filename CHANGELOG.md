@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v1.2.2 (2026-10-08)
+
+### Bug Fixes
+
+- **deps**: Upgrade dependencies to resolve security advisories
+  ([`c4dcb53`](https://github.com/netboxlabs/netbox-mcp-server/commit/c4dcb538697c68d2922bd711de60484ee025fa29))
+
+- **docker**: Update base image to python 3.14.8 on alpine 3.24
+  ([`6383afe`](https://github.com/netboxlabs/netbox-mcp-server/commit/6383afe8ecaac0e9ce87adc3df8309a1288e9524))
+
+### Chores
+
+- **github**: Assign CODEOWNERS to @netboxlabs/eng-ai team
+  ([`4715c2b`](https://github.com/netboxlabs/netbox-mcp-server/commit/4715c2be13478ed14a05d42874e6629bb5896074))
+
+- **lint**: Apply ruff 0.16 markdown code block formatting
+  ([`9706a6c`](https://github.com/netboxlabs/netbox-mcp-server/commit/9706a6c0280408a86975da566af920c1a5681dcf))
+
+### Continuous Integration
+
+- Retrigger CodeQL analysis
+  ([`abbf138`](https://github.com/netboxlabs/netbox-mcp-server/commit/abbf13861908a9c8da0317eb3033e9842a6a0be2))
+
+
 ## v1.2.1 (2026-06-17)
 
 ### Bug Fixes
