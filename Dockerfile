@@ -1,4 +1,4 @@
-FROM python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81 AS builder
+FROM python:3.14-alpine3.24@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72 AS builder
 
 RUN pip install --root-user-action=ignore --no-cache-dir --upgrade pip \
     && pip install --root-user-action=ignore --no-cache-dir uv
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 
-FROM python:3.14-alpine3.23@sha256:02da11a8d221ca167aa07de20b3cd7104c1f01227f4b02b1fa13cf6517280a81
+FROM python:3.14-alpine3.24@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
 LABEL org.opencontainers.image.title="NetBox MCP Server" \
       org.opencontainers.image.description="A read-only MCP server for NetBox" \
       org.opencontainers.image.url="https://github.com/netboxlabs/netbox-mcp-server" \
@@ -29,6 +29,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apk update && apk upgrade --no-cache \
     && apk add --no-cache ca-certificates \
+    && python -m pip uninstall --root-user-action=ignore -y pip \
     && addgroup -g 1000 appuser \
     && adduser -D -u 1000 -G appuser appuser
 
