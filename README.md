@@ -170,6 +170,7 @@ The server supports multiple configuration sources with the following precedence
 |---------|------|---------|----------|-------------|
 | `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
 | `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
+| `NETBOX_HOST` | String | - | No | Host header to send to NetBox. Set this when `NETBOX_URL` points at a local tunnel or proxy (e.g. Teleport) and NetBox only accepts its public hostname. |
 | `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
@@ -239,6 +240,10 @@ TRANSPORT=stdio
 # PORT=8000
 # Bearer token required on the HTTP endpoint. When unset, the endpoint is unauthenticated.
 # MCP_AUTH_TOKEN=a-strong-random-token
+
+# Host header override (optional). Use when NETBOX_URL is a local tunnel/proxy
+# and NetBox's ALLOWED_HOSTS only accepts its public hostname.
+# NETBOX_HOST=netbox.example.com
 
 # Security (optional, defaults to true)
 VERIFY_SSL=true

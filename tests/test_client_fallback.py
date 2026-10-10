@@ -24,6 +24,26 @@ def client():
 
 
 # ============================================================================
+# Host Header Override
+# ============================================================================
+
+
+def test_host_header_not_set_by_default(client):
+    """Without host_header, the session should not override Host."""
+    assert "host" not in client.session.headers
+
+
+def test_host_header_override_is_applied():
+    """host_header should be sent as the Host header on every request."""
+    client = NetBoxRestClient(
+        url="http://localhost:8444",
+        token="test-token",
+        host_header="netbox.example.com",
+    )
+    assert client.session.headers["host"] == "netbox.example.com"
+
+
+# ============================================================================
 # Fallback Trigger Conditions
 # ============================================================================
 
