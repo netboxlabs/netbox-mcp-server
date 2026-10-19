@@ -48,7 +48,7 @@ NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run netbox-mcp-se
 # Alternative: module execution
 uv run -m netbox_mcp_server
 
-# Lint, format check and tests (as run in CI)
+# Lint, format check and tests (the checks CI runs)
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest
@@ -96,7 +96,7 @@ This project uses [python-semantic-release](https://python-semantic-release.read
 
 - **Type hints required**: All function parameters and return types must be annotated
 - **Docstrings**: Use Google-style docstrings for all public functions and classes
-- **Line length**: 100 characters maximum (Ruff, configured in `pyproject.toml`)
+- **Line length**: 100 characters (Ruff formatter, set in `pyproject.toml`; E501 is not enforced, so long strings may exceed it)
 - **Naming conventions**:
   - Functions and variables: `snake_case`
   - Classes: `PascalCase`
@@ -186,7 +186,7 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 
 ## Testing Philosophy
 
-The pytest suite lives in `tests/` and runs without a NetBox instance. CI runs it on Python 3.11-3.14. When adding tests:
+The pytest suite in `tests/` does not need a running NetBox instance; NetBox API calls are mocked. CI runs it on Python 3.11-3.14. When adding tests:
 
 - Test tool behavior with real NetBox instance (Docker-based test environment)
 - Mock external NetBox API calls only when necessary
