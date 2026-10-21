@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     netbox_token: SecretStr
     """API token for NetBox authentication (treated as secret)"""
 
+    netbox_host: str | None = None
+    """Optional Host header override for requests to NetBox.
+
+    Needed when NETBOX_URL points at a local tunnel or proxy (e.g. Teleport)
+    and NetBox's ALLOWED_HOSTS only accepts its public hostname.
+    """
+
     # ===== Transport Settings =====
     transport: Literal["stdio", "http"] = "stdio"
     """MCP transport protocol to use (stdio for Claude Desktop, http for web clients)"""

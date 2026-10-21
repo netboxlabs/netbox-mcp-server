@@ -769,6 +769,7 @@ def main() -> None:
             url=str(settings.netbox_url),
             token=settings.netbox_token.get_secret_value(),
             verify_ssl=settings.verify_ssl,
+            host_header=settings.netbox_host,
         )
         logger.debug("NetBox client initialized successfully")
     except Exception as e:
