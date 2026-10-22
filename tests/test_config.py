@@ -59,6 +59,68 @@ def test_settings_masks_secrets_in_summary():
     assert summary["netbox_token"] == "***REDACTED***"
     assert "super-secret-token" not in str(summary)
 
+# ===== NetBox Token Passthrough Tests =====
+
+def test_passthrough_allows_missing_netbox_token():
+    """NETBOX_TOKEN is optional when passthrough is enabled."""
+    with patch.dict("os.environ", {}, clear=True):
+        settings = Settings(
+            netbox_url="https://netbox.example.com/",
+            transport="http",
+            netbox_token_passthrough=True,
+            _env_file=None,
+        )
+
+    assert settings.netbox_token is None
+    assert settings.netbox_token_passthrough is True
+
+def test_passthrough_still_allows_fallback_token():
+    """A configured NETBOX_TOKEN can coexist with passthrough as a fallback."""
+    settings = Settings(
+        netbox_url="https://netbox.example.com/",
+        netbox_token="fallback-token",
+        transport="http",
+        netbox_token_passthrough=True,
+        _env_file=None,
+    )
+
+    assert settings.netbox_token.get_secret_value() == "fallback-token"
+
+def test_passthrough_requires_http_transport():
+    """Passthrough cannot be combined with stdio transport."""
+    with pytest.raises(ValidationError, match="transport=http"):
+        Settings(
+            netbox_url="https://netbox.example.com/",
+            transport="stdio",
+            netbox_token_passthrough=True,
+            _env_file=None,
+        )
+
+def test_passthrough_conflicts_with_mcp_auth_token():
+    """Passthrough and MCP_AUTH_TOKEN cannot both read Authorization header."""
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        Settings(
+            netbox_url="https://netbox.example.com/",
+            transport="http",
+            netbox_token_passthrough=True,
+            mcp_auth_token="bearer-secret",
+            _env_file=None,
+        )
+
+def test_passthrough_summary_include_for_http():
+    """The passthrough flag appears in the HTTP config summary."""
+    with patch.dict("os.environ", {}, clear=True):
+        settings = Settings(
+            netbox_url="https://netbox.example.com/",
+            transport="http",
+            netbox_token_passthrough=True,
+            _env_file=None,
+        )
+
+    summary = settings.get_effective_config_summary()
+
+    assert summary["netbox_token_passthrough"] is True
+    assert summary["netbox_token"] is None
 
 # ===== MCP Auth Token Tests =====
 
@@ -160,10 +222,10 @@ def test_configure_logging_suppresses_http_clients():
     configure_logging("INFO")
 
     urllib3_logger = logging.getLogger("urllib3")
-    httpx_logger = logging.getLogger("httpx")
+    httpx2_logger = logging.getLogger("httpx2")
 
     assert urllib3_logger.level == logging.WARNING
-    assert httpx_logger.level == logging.WARNING
+    assert httpx2_logger.level == logging.WARNING
 
 
 def test_configure_logging_shows_http_clients_at_debug():
@@ -172,8 +234,8 @@ def test_configure_logging_shows_http_clients_at_debug():
 
     root_logger = logging.getLogger()
     urllib3_logger = logging.getLogger("urllib3")
-    httpx_logger = logging.getLogger("httpx")
+    httpx2_logger = logging.getLogger("httpx2")
 
     assert root_logger.level == logging.DEBUG
     assert urllib3_logger.level == logging.DEBUG
-    assert httpx_logger.level == logging.DEBUG
+    assert httpx2_logger.level == logging.DEBUG

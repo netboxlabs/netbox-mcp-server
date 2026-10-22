@@ -6,9 +6,25 @@ This module provides a base class for NetBox client implementations and a REST A
 """
 
 import abc
+import contextvars
 from typing import Any
 
-import httpx
+import httpx2
+
+# Per-request Netbox API token set by HTTP transport's token-passthrough
+# middleware from incoming authorization header. None means
+# "use the token this client was constructed with".
+_forwarded_token: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_forwarded_token", default=None
+)
+
+def set_forward_token(token: str | None) -> contextvars.Token:
+    """Set the per-request forward Netbox token; returns a reset handle."""
+    return _forwarded_token.set(token)
+
+def reset_forward_token(reset_token: contextvars.Token) -> None:
+    """"Restore the forward-token context to its prior value."""
+    _forwarded_token.reset(reset_token)
 
 
 class NetBoxClientBase(abc.ABC):
@@ -175,7 +191,7 @@ class NetBoxRestClient(NetBoxClientBase):
         self.token = token
         self.verify_ssl = verify_ssl
         auth_scheme = "Bearer" if token.startswith("nbt_") else "Token"
-        self.session = httpx.Client(verify=self.verify_ssl)
+        self.session = httpx2.Client(verify=self.verify_ssl)
         self.session.headers.update(
             {
                 "Authorization": f"{auth_scheme} {token}",
@@ -190,6 +206,15 @@ class NetBoxRestClient(NetBoxClientBase):
         if id is not None:
             return f"{self.api_url}/{endpoint}/{id}/"
         return f"{self.api_url}/{endpoint}/"
+
+    def _request_headers(self) -> dict[str, str] | None:
+        """
+        """
+        forwarded = _forwarded_token.get()
+        if forwarded is None:
+            return None
+        auth_scheme = "Bearer" if forwarded.startswith("nbt_") else "Token"
+        return {"Authorization": f"{auth_scheme} {forwarded}"}
 
     def get(
         self,
@@ -217,15 +242,16 @@ class NetBoxRestClient(NetBoxClientBase):
                 - results: Array of objects for this page
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params)
+        headers = self._request_headers()
+        response = self.session.get(url, params=params, headers=headers)
 
         # Try fallback endpoint if primary returns 404
         if response.status_code == 404 and fallback_endpoint:
             fallback_url = self._build_url(fallback_endpoint, id)
-            response = self.session.get(fallback_url, params=params)
+            response = self.session.get(fallback_url, params=params, headers=headers)
 
         response.raise_for_status()
 
@@ -243,10 +269,10 @@ class NetBoxRestClient(NetBoxClientBase):
             The created object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
-        response = self.session.post(url, json=data)
+        response = self.session.post(url, json=data, headers=self._request_headers())
         response.raise_for_status()
         return response.json()
 
@@ -263,10 +289,10 @@ class NetBoxRestClient(NetBoxClientBase):
             The updated object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.patch(url, json=data)
+        response = self.session.patch(url, json=data, headers=self._request_headers())
         response.raise_for_status()
         return response.json()
 
@@ -282,10 +308,10 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.delete(url)
+        response = self.session.delete(url, headers=self._request_headers())
         response.raise_for_status()
         return response.status_code == 204
 
@@ -301,10 +327,10 @@ class NetBoxRestClient(NetBoxClientBase):
             List of created objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.post(url, json=data)
+        response = self.session.post(url, json=data, headers=self._request_headers())
         response.raise_for_status()
         return response.json()
 
@@ -320,10 +346,10 @@ class NetBoxRestClient(NetBoxClientBase):
             List of updated objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.patch(url, json=data)
+        response = self.session.patch(url, json=data, headers=self._request_headers())
         response.raise_for_status()
         return response.json()
 
@@ -339,10 +365,11 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
         data = [{"id": id} for id in ids]
-        response = self.session.delete(url, json=data)
+        # https://github.com/encode/httpx2/discussions/1587
+        response = self.session.delete(url, json=data, headers=self._request_headers())
         response.raise_for_status()
         return response.status_code == 204

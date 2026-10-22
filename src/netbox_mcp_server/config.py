@@ -22,8 +22,12 @@ class Settings(BaseSettings):
     netbox_url: AnyUrl
     """Base URL of the NetBox instance (e.g., https://netbox.example.com/)"""
 
-    netbox_token: SecretStr
-    """API token for NetBox authentication (treated as secret)"""
+    netbox_token: SecretStr | None = None
+    """API token for NetBox authentication (treated as secret)
+
+    Required unless netbox_token_passthrough is enabled, in which case it is
+    only used as a fallback for requests that don't forward their own token.
+    """
 
     # ===== Transport Settings =====
     transport: Literal["stdio", "http"] = "stdio"
@@ -49,6 +53,20 @@ class Settings(BaseSettings):
         ),
     )
     """Optional bearer token protecting the HTTP transport endpoint (treated as secret)"""
+
+    netbox_token_passthrough: bool = Field(
+        default=False,
+        description=(
+            "When true (HTTP transport only), forward each request's own "
+            "'Authorization: Bearer <token>' header to Netbox as its API token. "
+            "instead of the server's NETBOX_TOKEN. This lets Netbox enforce "
+            "per-user permissions for a shared, remotely deployed server. "
+            "NETBOX_TOKEN becomes optional and, if set, is only used as a "
+            "fallback for requests that don't carry their own token. Mutually "
+            "exclusive with MCP_AUTH_TOKEN, since both would need to be read the ",
+            "same Authorization header for different purposes."
+        )
+    )
 
     # ===== Plugin Discovery Settings =====
     enable_plugin_discovery: bool = False
@@ -77,7 +95,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_port(cls, v: int) -> int:
         """Ensure port is in valid range."""
-        if not (0 < v < 65536):
+        if not 0 < v < 65536:
             raise ValueError(f"Port must be between 1 and 65535, got {v}")
         return v
 
@@ -107,7 +125,21 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_http_transport_requirements(self) -> "Settings":
-        """No additional validation needed for HTTP transport; defaults are appropriate."""
+        """Validate token passthrough is only used where it makes sense."""
+        if self.netbox_token_passthrough and self.transport != "http":
+            raise ValueError(
+                "netbox_token_passthrough (NETBOX_TOKEN_PASSTHROUGH) requires transport=http"
+            )
+        if self.netbox_token_passthrough and self.mcp_auth_token is not None:
+            raise ValueError(
+                "netbox_token_passthrough and mcp_auth_token are mutually exclusive: "
+                "both read the client's Authorization header for a different purpose"
+            )
+        if not self.netbox_token_passthrough and self.netbox_token is None:
+            raise ValueError(
+                "netbox_token (NETBOX_TOKEN) is required unless netbox_token_passthrough "
+                "(NETBOX_TOKEN_PASSTHROUGH) is enabled"
+            )
         return self
 
     @field_validator("cors_origins", mode="before")
@@ -133,7 +165,7 @@ class Settings(BaseSettings):
         """
         summary: dict[str, Any] = {
             "netbox_url": str(self.netbox_url),
-            "netbox_token": "***REDACTED***",
+            "netbox_token": "***REDACTED***" if self.netbox_token else None,
             "transport": self.transport,
             "verify_ssl": self.verify_ssl,
             "enable_plugin_discovery": self.enable_plugin_discovery,
@@ -146,6 +178,7 @@ class Settings(BaseSettings):
                     "port": self.port,
                     "cors_origins": self.cors_origins,
                     "mcp_auth_token": "***REDACTED***" if self.mcp_auth_token else None,
+                    "netbox_token_passthrough": self.netbox_token_passthrough,
                 }
             )
         return summary
@@ -181,7 +214,7 @@ def configure_logging(
             "urllib3": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
-            "httpx": {
+            "httpx2": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
         },
