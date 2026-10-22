@@ -138,13 +138,11 @@ Both `netbox_get_objects()` and `netbox_get_object_by_id()` support an optional 
 
 ```python
 # Without fields: ~5000 tokens for 50 devices
-devices = netbox_get_objects('devices', {'site': 'datacenter-1'})
+devices = netbox_get_objects("devices", {"site": "datacenter-1"})
 
 # With fields: ~500 tokens (90% reduction)
 devices = netbox_get_objects(
-    'devices',
-    {'site': 'datacenter-1'},
-    fields=['id', 'name', 'status', 'site']
+    "devices", {"site": "datacenter-1"}, fields=["id", "name", "status", "site"]
 )
 ```
 
