@@ -5,10 +5,12 @@ plugin models and returns them in the same format as NETBOX_OBJECT_TYPES.
 """
 
 from unittest.mock import MagicMock
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
+from netbox_mcp_server.netbox_client import NetBoxRestClient
 from netbox_mcp_server.server import discover_plugin_types
 
 
@@ -33,7 +35,9 @@ def _plugin_row(
 @pytest.fixture
 def client():
     """Mock NetBox client with a configurable get() method."""
-    return MagicMock()
+    mock_client = MagicMock()
+    mock_client.base_url = "https://netbox.example.com"
+    return mock_client
 
 
 # ============================================================================
@@ -182,6 +186,72 @@ def test_converts_rest_url_to_endpoint(client, rest_url, expected_endpoint):
     result = discover_plugin_types(client)
 
     assert result["plug.thing"]["endpoint"] == expected_endpoint
+
+
+@pytest.mark.parametrize(
+    ("base_url", "rest_url", "expected_plugin_path"),
+    [
+        (
+            "https://netbox.example.com",
+            "/api/plugins/netbox-dns/zones/",
+            "/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/netbox",
+            "/netbox/api/plugins/netbox-dns/zones/",
+            "/netbox/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/team/netbox",
+            "/team/netbox/api/plugins/netbox-dns/zones/",
+            "/team/netbox/api/plugins/netbox-dns/zones/",
+        ),
+    ],
+)
+def test_discovered_endpoint_is_requested_once_under_api_base(
+    base_url, rest_url, expected_plugin_path
+):
+    """Discovered REST paths remain usable for root and BASE_PATH deployments."""
+    requested_paths = []
+
+    def handler(request):
+        requested_paths.append(request.url.path)
+        if request.url.path.endswith("/object-types/"):
+            return httpx.Response(
+                200,
+                json={
+                    "results": [_plugin_row("netbox_dns", "zone", rest_url)],
+                    "next": None,
+                },
+            )
+        return httpx.Response(200, json={})
+
+    client = NetBoxRestClient(base_url, "test-token")
+    client.session.close()
+    client.session = httpx.Client(transport=httpx.MockTransport(handler))
+    try:
+        plugin_types = discover_plugin_types(client)
+        client.get(plugin_types["netbox_dns.zone"]["endpoint"])
+    finally:
+        client.session.close()
+
+    assert requested_paths == [
+        f"{urlsplit(base_url).path.rstrip('/')}/api/core/object-types/",
+        expected_plugin_path,
+    ]
+
+
+def test_base_path_prefix_match_requires_a_segment_boundary(client):
+    """A similarly named path prefix must remain part of the endpoint."""
+    client.base_url = "https://netbox.example.com/netbox"
+    client.get.return_value = {
+        "results": [_plugin_row("plug", "thing", "/netboxish/api/plugins/example/things/")],
+        "next": None,
+    }
+
+    result = discover_plugin_types(client)
+
+    assert result["plug.thing"]["endpoint"] == "netboxish/api/plugins/example/things"
 
 
 # ============================================================================
