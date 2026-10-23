@@ -37,6 +37,7 @@ def client():
     """Mock NetBox client with a configurable get() method."""
     mock_client = MagicMock()
     mock_client.base_url = "https://netbox.example.com"
+    mock_client.api_url = "https://netbox.example.com/api"
     return mock_client
 
 
@@ -189,27 +190,54 @@ def test_converts_rest_url_to_endpoint(client, rest_url, expected_endpoint):
 
 
 @pytest.mark.parametrize(
-    ("base_url", "rest_url", "expected_plugin_path"),
+    ("base_url", "rest_url", "expected_endpoint", "expected_plugin_path"),
     [
         (
             "https://netbox.example.com",
             "/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
             "/api/plugins/netbox-dns/zones/",
         ),
         (
             "https://netbox.example.com/netbox",
             "/netbox/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
             "/netbox/api/plugins/netbox-dns/zones/",
         ),
         (
             "https://netbox.example.com/team/netbox",
             "/team/netbox/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
             "/team/netbox/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/plugins",
+            "/plugins/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/plugins/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/plugins",
+            "/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/plugins/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/api",
+            "/api/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/api/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/api",
+            "/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/api/api/plugins/netbox-dns/zones/",
         ),
     ],
 )
 def test_discovered_endpoint_is_requested_once_under_api_base(
-    base_url, rest_url, expected_plugin_path
+    base_url, rest_url, expected_endpoint, expected_plugin_path
 ):
     """Discovered REST paths remain usable for root and BASE_PATH deployments."""
     requested_paths = []
@@ -231,6 +259,7 @@ def test_discovered_endpoint_is_requested_once_under_api_base(
     client.session = httpx.Client(transport=httpx.MockTransport(handler))
     try:
         plugin_types = discover_plugin_types(client)
+        assert plugin_types["netbox_dns.zone"]["endpoint"] == expected_endpoint
         client.get(plugin_types["netbox_dns.zone"]["endpoint"])
     finally:
         client.session.close()
@@ -244,6 +273,7 @@ def test_discovered_endpoint_is_requested_once_under_api_base(
 def test_base_path_prefix_match_requires_a_segment_boundary(client):
     """A similarly named path prefix must remain part of the endpoint."""
     client.base_url = "https://netbox.example.com/netbox"
+    client.api_url = "https://netbox.example.com/netbox/api"
     client.get.return_value = {
         "results": [_plugin_row("plug", "thing", "/netboxish/api/plugins/example/things/")],
         "next": None,

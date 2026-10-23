@@ -636,7 +636,7 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
         # Paginate through all object types
         offset = 0
         limit = 100
-        base_path = urlsplit(client.base_url).path.strip("/")
+        api_path = urlsplit(client.api_url).path.strip("/")
         while True:
             response = client.get(
                 "core/object-types",
@@ -669,8 +669,8 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 # Convert REST URL to endpoint path:
                 # "/api/plugins/netbox-dns/zones/" -> "plugins/netbox-dns/zones"
                 endpoint = rest_url.strip("/")
-                if base_path and endpoint.startswith(f"{base_path}/"):
-                    endpoint = endpoint[len(base_path) + 1 :]
+                if api_path and endpoint.startswith(f"{api_path}/"):
+                    endpoint = endpoint[len(api_path) + 1 :]
                 if endpoint.startswith("api/"):
                     endpoint = endpoint[4:]
 
