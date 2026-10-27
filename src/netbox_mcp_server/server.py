@@ -499,6 +499,7 @@ def netbox_get_changelogs(filters: dict):
     - postchange_data: The object's data after the change (null for deletions)
     - time: The timestamp when the change was made
     """
+    validate_filters(filters)
     endpoint = "core/object-changes"
 
     # Make API call
