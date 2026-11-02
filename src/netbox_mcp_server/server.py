@@ -679,9 +679,9 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 }
 
             # Check if there are more pages
-            if not response.get("next"):
+            if not results or not response.get("next"):
                 break
-            offset += limit
+            offset += len(results)
 
     except (httpx.HTTPError, ValueError, KeyError) as e:
         logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
