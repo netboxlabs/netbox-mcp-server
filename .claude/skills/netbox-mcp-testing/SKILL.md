@@ -18,7 +18,7 @@ Before testing, verify:
 
 1. NetBox MCP server is connected (run `/mcp` command)
 2. Access to a live NetBox instance with test data exists
-3. NETBOX_URL and NETBOX_TOKEN environment variables are configured
+3. NETBOX_URL and NETBOX_TOKEN environment variables are configured (or, with TOKEN_PASSTHROUGH, the MCP client sends its own NetBox token)
 
 If prerequisites aren't met, testing cannot proceed reliably.
 

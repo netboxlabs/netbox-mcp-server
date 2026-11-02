@@ -90,3 +90,6 @@ logs/
 .worktrees/
 
 .plans/*
+
+# Testbed user tokens
+testbed/tokens.json
