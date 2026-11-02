@@ -4,14 +4,20 @@ import hashlib
 import hmac
 import logging
 import sys
+import time
 from typing import Annotated, Any
 
 import httpx
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+from fastmcp.server.dependencies import get_access_token, get_http_request
 from pydantic import Field, SecretStr
+from starlette.authentication import AuthenticationError
 from starlette.middleware import Middleware
+from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import HTTPConnection
+from starlette.responses import JSONResponse, Response
 
 from netbox_mcp_server.config import Settings, configure_logging
 from netbox_mcp_server.netbox_client import NetBoxRestClient
@@ -63,6 +69,28 @@ def parse_cli_args() -> dict[str, Any]:
         "--cors-origins",
         action="append",
         help="CORS origins (repeat flag). Use * to allow any origin (default: none)",
+    )
+    parser.add_argument(
+        "--token-passthrough",
+        action="store_true",
+        default=None,
+        dest="token_passthrough",
+        help=(
+            "Use each HTTP client's own NetBox token (sent as 'Authorization: Bearer "
+            "<token>') instead of a shared NETBOX_TOKEN (default: off)"
+        ),
+    )
+    parser.add_argument(
+        "--token-cache-ttl",
+        type=float,
+        help="Seconds to remember an accepted passthrough token, 0 to disable (default: 60)",
+    )
+    parser.add_argument(
+        "--forward-client-ip",
+        action="store_true",
+        default=None,
+        dest="forward_client_ip",
+        help="Send each client's IP to NetBox as X-Forwarded-For (passthrough only)",
     )
     parser.add_argument(
         "--mcp-auth-token",
@@ -123,6 +151,12 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["cors_origins"] = args.cors_origins
     if args.mcp_auth_token is not None:
         overlay["mcp_auth_token"] = args.mcp_auth_token
+    if args.token_passthrough is not None:
+        overlay["token_passthrough"] = args.token_passthrough
+    if args.token_cache_ttl is not None:
+        overlay["token_cache_ttl"] = args.token_cache_ttl
+    if args.forward_client_ip is not None:
+        overlay["forward_client_ip"] = args.forward_client_ip
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
@@ -179,6 +213,133 @@ def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
     return BearerTokenVerifier(token.get_secret_value())
 
 
+class NetBoxUnavailableError(AuthenticationError):
+    """NetBox could not be reached to check a passthrough token."""
+
+
+def _netbox_unavailable_response(conn: HTTPConnection, exc: AuthenticationError) -> Response:
+    """Answer 503 instead of 401 so clients do not discard a token that may be fine."""
+    return JSONResponse(
+        {"error": "temporarily_unavailable", "error_description": str(exc)},
+        status_code=503,
+        headers={"Retry-After": "5"},
+    )
+
+
+def get_client_ip(enabled: bool) -> str | None:
+    """
+    Return the IP of the client behind the current HTTP request, if enabled.
+
+    uvicorn already resolves X-Forwarded-For from trusted proxies (FORWARDED_ALLOW_IPS)
+    into request.client, so this is the end user's address, not a proxy's.
+
+    Args:
+        enabled: Whether client IP forwarding is turned on
+
+    Returns:
+        The client IP, or None when disabled or unknown
+    """
+    if not enabled:
+        return None
+    try:
+        request = get_http_request()
+    except RuntimeError:
+        return None
+    return request.client.host if request.client else None
+
+
+class NetBoxTokenVerifier(TokenVerifier):
+    """Accept a bearer only if NetBox accepts it as an API token.
+
+    Used in token passthrough mode. The bearer is the caller's own NetBox token,
+    checked against NetBox (authentication-check, or users/config on NetBox < 4.5).
+    Tool calls then use the same token, so NetBox applies that user's permissions to
+    every request.
+
+    Accepted tokens are cached for cache_ttl seconds to avoid an extra NetBox call per
+    MCP request. A token revoked within that window still passes this check, but
+    NetBox rejects the tool calls made with it, so no access is gained.
+
+    If NetBox cannot be reached, the request gets 503 rather than 401.
+    """
+
+    def __init__(
+        self,
+        client: NetBoxRestClient,
+        cache_ttl: float = 60.0,
+        forward_client_ip: bool = False,
+    ) -> None:
+        super().__init__()
+        self._client = client
+        self._cache_ttl = cache_ttl
+        self._forward_client_ip = forward_client_ip
+        # sha256(token, client IP) -> (expires at, access token); hashed keys avoid
+        # holding raw tokens, and the IP keeps allowed-IP checks per address.
+        self._cache: dict[bytes, tuple[float, AccessToken]] = {}
+
+    def get_middleware(self) -> list:
+        """Use FastMCP's auth middleware, but answer 503 when NetBox is unreachable."""
+        return [
+            Middleware(m.cls, *m.args, **m.kwargs, on_error=_netbox_unavailable_response)
+            if m.cls is AuthenticationMiddleware
+            else m
+            for m in super().get_middleware()
+        ]
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        """
+        Return an AccessToken naming the NetBox user, or None to reject.
+
+        Raises:
+            NetBoxUnavailableError: If NetBox is unreachable or failing
+        """
+        if not token:
+            return None
+
+        client_ip = get_client_ip(self._forward_client_ip)
+        key = hashlib.sha256(
+            token.encode("utf-8", "surrogatepass") + b"\0" + (client_ip or "").encode()
+        ).digest()
+        now = time.monotonic()
+        cached = self._cache.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+
+        logger = logging.getLogger(__name__)
+        try:
+            # users/config also requires a valid token, but has no username;
+            # it covers NetBox < 4.5, which lacks authentication-check.
+            user = await asyncio.to_thread(
+                self._client.with_token(token, client_ip).get,
+                "authentication-check",
+                fallback_endpoint="users/config",
+            )
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429 or status >= 500:
+                logger.warning(f"NetBox token check failed with HTTP {status}")
+                raise NetBoxUnavailableError(f"NetBox returned HTTP {status}") from e
+            if status not in (401, 403):
+                logger.warning(f"NetBox token check failed with HTTP {status}")
+            return None
+        except httpx.HTTPError as e:
+            logger.warning(f"NetBox token check failed: {e!r}")
+            raise NetBoxUnavailableError("NetBox could not be reached") from e
+        except UnicodeError:
+            # The bearer is attacker-controlled and may not be a valid header value
+            return None
+
+        username = user.get("username", "unknown")
+        access_token = AccessToken(
+            token=token, client_id=username, scopes=[], claims={"netbox_user": username}
+        )
+        if self._cache_ttl > 0:
+            # Drop expired entries so the cache cannot grow without bound
+            self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
+            self._cache[key] = (now + self._cache_ttl, access_token)
+        return access_token
+
+
 # Default object types for global search
 DEFAULT_SEARCH_TYPES = [
     "dcim.device",  # Most common search target
@@ -193,6 +354,27 @@ DEFAULT_SEARCH_TYPES = [
 
 mcp = FastMCP("NetBox")
 netbox = None
+token_passthrough = False
+forward_client_ip = False
+
+
+def get_netbox_client() -> NetBoxRestClient:
+    """
+    Return the NetBox client to use for the current tool call.
+
+    In token passthrough mode this is a client using the caller's own NetBox token
+    (and IP, if forwarding is on), so NetBox applies that user's permissions.
+    Otherwise it is the shared client.
+
+    Raises:
+        PermissionError: In passthrough mode, if the request carries no token
+    """
+    if not token_passthrough:
+        return netbox
+    access_token = get_access_token()
+    if access_token is None:
+        raise PermissionError("No NetBox token on this request")
+    return netbox.with_token(access_token.token, get_client_ip(forward_client_ip))
 
 
 def validate_filters(filters: dict) -> None:
@@ -387,7 +569,7 @@ def netbox_get_objects(
             params["ordering"] = ordering
 
     # Make API call
-    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
+    return get_netbox_client().get(endpoint, params=params, fallback_endpoint=fallback)
 
 
 @mcp.tool
@@ -440,7 +622,7 @@ def netbox_get_object_by_id(
     if brief:
         params["brief"] = "1"
 
-    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
+    return get_netbox_client().get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
 @mcp.tool
@@ -502,7 +684,7 @@ def netbox_get_changelogs(filters: dict):
     endpoint = "core/object-changes"
 
     # Make API call
-    return netbox.get(endpoint, params=filters)
+    return get_netbox_client().get(endpoint, params=filters)
 
 
 @mcp.tool(
@@ -573,12 +755,13 @@ def netbox_search_objects(
             raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
 
     results = {obj_type: [] for obj_type in search_types}
+    client = get_netbox_client()
 
     # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
             endpoint, fallback = _get_endpoint_info(obj_type)
-            response = netbox.get(
+            response = client.get(
                 endpoint,
                 params={
                     "q": query,
@@ -727,7 +910,7 @@ async def _update_tool_descriptions() -> None:
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    global netbox
+    global netbox, token_passthrough, forward_client_ip
 
     cli_overlay: dict[str, Any] = parse_cli_args()
 
@@ -767,7 +950,7 @@ def main() -> None:
     try:
         netbox = NetBoxRestClient(
             url=str(settings.netbox_url),
-            token=settings.netbox_token.get_secret_value(),
+            token=settings.netbox_token.get_secret_value() if settings.netbox_token else None,
             verify_ssl=settings.verify_ssl,
         )
         logger.debug("NetBox client initialized successfully")
@@ -787,8 +970,16 @@ def main() -> None:
             mcp.run(transport="stdio")
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
-            auth = build_http_auth(settings.mcp_auth_token)
-            if auth is not None:
+            if settings.token_passthrough:
+                token_passthrough = True
+                forward_client_ip = settings.forward_client_ip
+                mcp.auth = NetBoxTokenVerifier(
+                    netbox,
+                    cache_ttl=settings.token_cache_ttl,
+                    forward_client_ip=settings.forward_client_ip,
+                )
+                logger.info("Token passthrough enabled: each client must send its own NetBox token")
+            elif (auth := build_http_auth(settings.mcp_auth_token)) is not None:
                 # FastMCP reads mcp.auth when it builds the HTTP app at run time,
                 # so this assignment wires it (the 401 tests verify enforcement).
                 mcp.auth = auth

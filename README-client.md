@@ -86,6 +86,22 @@ updated_sites = client.bulk_update(
 success = client.bulk_delete("dcim/sites", ids=[1, 2])
 ```
 
+### One Client per User
+
+`with_token()` returns a client that uses another token but shares the same HTTP
+connections. The MCP server uses this for token passthrough. A client created with
+`token=None` sends no credentials.
+
+```python
+base = NetBoxRestClient(url="https://netbox.example.com", token=None)
+
+# v2 tokens (nbt_...) are sent as "Bearer", v1 tokens as "Token"
+alice = base.with_token("nbt_abc123.secret")
+
+# Optionally send the user's IP as X-Forwarded-For, for tokens with Allowed IPs
+bob = base.with_token("0123456789abcdef0123456789abcdef01234567", client_ip="203.0.113.7")
+```
+
 ## Extending for ORM Implementation
 
 The `NetBoxClientBase` abstract base class can be extended to create an ORM-based implementation for use within a NetBox plugin:
