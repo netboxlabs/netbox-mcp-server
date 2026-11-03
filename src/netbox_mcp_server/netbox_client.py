@@ -303,7 +303,7 @@ class NetBoxRestClient(NetBoxClientBase):
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         response = self.session.post(url, json=data)
         response.raise_for_status()
         return response.json()
@@ -322,7 +322,7 @@ class NetBoxRestClient(NetBoxClientBase):
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         response = self.session.patch(url, json=data)
         response.raise_for_status()
         return response.json()
@@ -341,8 +341,8 @@ class NetBoxRestClient(NetBoxClientBase):
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         data = [{"id": id} for id in ids]
-        response = self.session.delete(url, json=data)
+        response = self.session.request("DELETE", url, json=data)
         response.raise_for_status()
         return response.status_code == 204
