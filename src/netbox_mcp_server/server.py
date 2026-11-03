@@ -287,7 +287,7 @@ def validate_filters(filters: dict) -> None:
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
-                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})
+                  netbox_get_objects('dcim.device', {'site_id': sites['results'][0]['id']})
 
         fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
