@@ -18,6 +18,7 @@ from netbox_mcp_server.server import (
     NetBoxUnavailableError,
     get_client_ip,
     get_netbox_client,
+    passthrough_warnings,
 )
 
 URL = "https://netbox.example.com/"
@@ -66,9 +67,35 @@ def test_forward_client_ip_requires_passthrough():
         _settings(netbox_token="shared", forward_client_ip=True)
 
 
-def test_token_cache_ttl_cannot_be_negative():
+@pytest.mark.parametrize("ttl", [-1, float("inf"), float("nan")])
+def test_token_cache_ttl_must_be_finite_and_not_negative(ttl):
     with pytest.raises(ValidationError, match="token_cache_ttl"):
-        _settings(transport="http", token_passthrough=True, token_cache_ttl=-1)
+        _settings(transport="http", token_passthrough=True, token_cache_ttl=ttl)
+
+
+@pytest.mark.parametrize(
+    ("url", "verify_ssl", "expected"),
+    [
+        ("https://netbox.example.com/", True, []),
+        ("http://127.0.0.1:8080/", True, []),
+        ("http://localhost:8080/", True, []),
+        ("http://netbox.example.com/", True, ["plain HTTP"]),
+        ("https://netbox.example.com/", False, ["VERIFY_SSL"]),
+    ],
+)
+def test_passthrough_warns_when_tokens_could_be_exposed(url, verify_ssl, expected):
+    with patch.dict("os.environ", {}, clear=True):
+        settings = Settings(
+            netbox_url=url,
+            transport="http",
+            token_passthrough=True,
+            verify_ssl=verify_ssl,
+            _env_file=None,
+        )
+    warnings = passthrough_warnings(settings)
+    assert len(warnings) == len(expected)
+    for warning, text in zip(warnings, expected, strict=True):
+        assert text in warning
 
 
 # ===== Client =====
@@ -121,7 +148,7 @@ def _http_error(status: int) -> httpx.HTTPStatusError:
 
 
 def test_verifier_accepts_token_netbox_accepts():
-    get = MagicMock(return_value={"username": "alice"})
+    get = MagicMock(return_value={"id": 7, "username": "alice"})
     verifier = _verifier_with(get)
 
     access_token = asyncio.run(verifier.verify_token("nbt_alice.secret"))
@@ -129,15 +156,20 @@ def test_verifier_accepts_token_netbox_accepts():
     assert access_token is not None
     assert access_token.token == "nbt_alice.secret"
     assert access_token.client_id == "alice"
+    assert access_token.subject == "netbox-user:7"
     get.assert_called_once_with("authentication-check", fallback_endpoint="users/config")
 
 
-def test_verifier_names_unknown_user_on_old_netbox():
-    # users/config (the NetBox < 4.5 fallback) returns user preferences, no username
+def test_verifier_gives_each_token_its_own_subject_on_old_netbox():
+    # users/config (the NetBox < 4.5 fallback) returns user preferences, no user;
+    # sessions are bound to the subject, so it must still differ per caller.
     verifier = _verifier_with(MagicMock(return_value={"tables": {}}))
-    access_token = asyncio.run(verifier.verify_token("0123456789abcdef"))
-    assert access_token is not None
-    assert access_token.client_id == "unknown"
+    alice = asyncio.run(verifier.verify_token("0123456789abcdef"))
+    bob = asyncio.run(verifier.verify_token("fedcba9876543210"))
+    assert alice.client_id == bob.client_id == "unknown"
+    assert alice.subject.startswith("netbox-token:")
+    assert alice.subject != bob.subject
+    assert "0123456789abcdef" not in alice.subject
 
 
 @pytest.mark.parametrize("status", [400, 401, 403, 404])
@@ -162,15 +194,15 @@ def test_verifier_reports_unreachable_netbox_as_unavailable(error):
         asyncio.run(verifier.verify_token("nbt_any.token"))
 
 
-def test_verifier_rejects_token_that_is_not_a_valid_header():
-    verifier = _verifier_with(MagicMock(side_effect=UnicodeEncodeError("ascii", "é", 0, 1, "x")))
-    assert asyncio.run(verifier.verify_token("caf\xe9")) is None
-
-
-def test_verifier_rejects_empty_token_without_calling_netbox():
+@pytest.mark.parametrize(
+    "token",
+    ["", "caf\xe9", "a b", "abc\x01def", "abc\tdef", "x" * 257],
+    ids=["empty", "non-ascii", "space", "control", "tab", "too-long"],
+)
+def test_verifier_rejects_malformed_token_without_calling_netbox(token):
     get = MagicMock()
     verifier = _verifier_with(get)
-    assert asyncio.run(verifier.verify_token("")) is None
+    assert asyncio.run(verifier.verify_token(token)) is None
     get.assert_not_called()
 
 

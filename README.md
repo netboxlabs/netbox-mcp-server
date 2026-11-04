@@ -262,7 +262,9 @@ How it works:
   made with it. Set `TOKEN_CACHE_TTL=0` to check NetBox on every request.
 - An MCP session belongs to the user who opened it; another user's token cannot use it.
 - Tokens are kept in memory only (hashed as cache keys) and are never logged.
-- Clients send their NetBox token to this server, so always put it behind TLS.
+- Clients send their NetBox token to this server, so always put it behind TLS. The
+  server also forwards those tokens to NetBox, and logs a warning at startup if
+  `NETBOX_URL` is plain HTTP (other than localhost) or `VERIFY_SSL` is off.
 
 Additional settings for this mode:
 

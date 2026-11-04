@@ -2,10 +2,13 @@ import argparse
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import logging
+import re
 import sys
 import time
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import httpx
 from fastmcp import FastMCP
@@ -213,6 +216,10 @@ def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
     return BearerTokenVerifier(token.get_secret_value())
 
 
+# Printable ASCII without spaces; covers v1 (40 chars) and v2 (nbt_<key>.<token>) tokens
+_TOKEN_PATTERN = re.compile(r"[\x21-\x7e]{1,256}")
+
+
 class NetBoxUnavailableError(AuthenticationError):
     """NetBox could not be reached to check a passthrough token."""
 
@@ -246,6 +253,32 @@ def get_client_ip(enabled: bool) -> str | None:
     except RuntimeError:
         return None
     return request.client.host if request.client else None
+
+
+def passthrough_warnings(settings: Settings) -> list[str]:
+    """
+    Return warnings for passthrough setups that would expose users' NetBox tokens.
+
+    Args:
+        settings: The effective server settings
+
+    Returns:
+        Warning messages, empty when the setup looks safe
+    """
+    warnings = []
+    url = urlparse(str(settings.netbox_url))
+    host = url.hostname or ""
+    try:
+        loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = False
+    if url.scheme == "http" and not loopback:
+        warnings.append("NETBOX_URL uses plain HTTP: every user's NetBox token is sent unencrypted")
+    if not settings.verify_ssl:
+        warnings.append(
+            "VERIFY_SSL is off: anyone able to intercept traffic to NetBox can read users' tokens"
+        )
+    return warnings
 
 
 class NetBoxTokenVerifier(TokenVerifier):
@@ -293,13 +326,13 @@ class NetBoxTokenVerifier(TokenVerifier):
         Raises:
             NetBoxUnavailableError: If NetBox is unreachable or failing
         """
-        if not token:
+        # The bearer is attacker-controlled; only send NetBox something that could
+        # be a token, so garbage costs no NetBox call and is never put in a header.
+        if not _TOKEN_PATTERN.fullmatch(token):
             return None
 
         client_ip = get_client_ip(self._forward_client_ip)
-        key = hashlib.sha256(
-            token.encode("utf-8", "surrogatepass") + b"\0" + (client_ip or "").encode()
-        ).digest()
+        key = hashlib.sha256(token.encode() + b"\0" + (client_ip or "").encode()).digest()
         now = time.monotonic()
         cached = self._cache.get(key)
         if cached and cached[0] > now:
@@ -325,13 +358,20 @@ class NetBoxTokenVerifier(TokenVerifier):
         except httpx.HTTPError as e:
             logger.warning(f"NetBox token check failed: {e!r}")
             raise NetBoxUnavailableError("NetBox could not be reached") from e
-        except UnicodeError:
-            # The bearer is attacker-controlled and may not be a valid header value
-            return None
 
         username = user.get("username", "unknown")
+        # MCP binds each session to (client_id, subject), so the subject must be
+        # unique per user. users/config has no user ID; fall back to the token hash.
+        if "id" in user:
+            subject = f"netbox-user:{user['id']}"
+        else:
+            subject = f"netbox-token:{hashlib.sha256(token.encode()).hexdigest()}"
         access_token = AccessToken(
-            token=token, client_id=username, scopes=[], claims={"netbox_user": username}
+            token=token,
+            client_id=username,
+            subject=subject,
+            scopes=[],
+            claims={"netbox_user": username},
         )
         if self._cache_ttl > 0:
             # Drop expired entries so the cache cannot grow without bound
@@ -979,6 +1019,8 @@ def main() -> None:
                     forward_client_ip=settings.forward_client_ip,
                 )
                 logger.info("Token passthrough enabled: each client must send its own NetBox token")
+                for warning in passthrough_warnings(settings):
+                    logger.warning(warning)
             elif (auth := build_http_auth(settings.mcp_auth_token)) is not None:
                 # FastMCP reads mcp.auth when it builds the HTTP app at run time,
                 # so this assignment wires it (the 401 tests verify enforcement).

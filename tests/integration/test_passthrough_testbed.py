@@ -306,8 +306,8 @@ def test_concurrent_users_do_not_share_tokens(mcp_url):
     assert bob_counts == {1}
 
 
-def test_reused_session_id_still_uses_the_requests_own_token(mcp_url):
-    """Bob reusing Alice's MCP session ID must get Bob's view, never Alice's."""
+def test_session_cannot_be_used_by_another_user(mcp_url):
+    """Bob cannot use or end Alice's MCP session, on any NetBox version."""
     headers = {"Accept": "application/json, text/event-stream"}
     init = httpx.post(
         mcp_url,
@@ -336,14 +336,13 @@ def test_reused_session_id_still_uses_the_requests_own_token(mcp_url):
         },
     )
 
-    if response.status_code != 200:
-        # The MCP SDK binds sessions to the user who opened them and answers 404
-        assert response.status_code == 404
-        return
-    data = next(
-        json.loads(line[5:]) for line in response.text.splitlines() if line.startswith("data:")
+    # The MCP SDK binds sessions to the user who opened them and answers 404
+    assert response.status_code == 404
+
+    delete = httpx.delete(
+        mcp_url, headers={**headers, **session, "Authorization": f"Bearer {token('bob')}"}
     )
-    assert data["result"]["structuredContent"]["count"] == 1
+    assert delete.status_code == 404
 
 
 # ===== Token lifecycle =====
