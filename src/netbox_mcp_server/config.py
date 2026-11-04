@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     permissions. Only valid with transport='http'.
     """
 
-    token_cache_ttl: float = Field(default=60.0, ge=0)
+    token_cache_ttl: float = Field(default=60.0, ge=0, allow_inf_nan=False)
     """Seconds to remember a passthrough token NetBox accepted (0 checks every request)"""
 
     forward_client_ip: bool = False
