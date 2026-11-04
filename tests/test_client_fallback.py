@@ -38,7 +38,7 @@ def test_fallback_triggered_on_404_with_fallback_endpoint(client):
     fallback_response.json.return_value = {"count": 1, "results": [{"id": 1}]}
     fallback_response.raise_for_status = MagicMock()
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         result = client.get(
@@ -49,9 +49,9 @@ def test_fallback_triggered_on_404_with_fallback_endpoint(client):
 
         assert mock_get.call_count == 2
         # Verify first call was to primary endpoint
-        assert "core/object-types" in mock_get.call_args_list[0][0][0]
+        assert "core/object-types" in mock_get.call_args_list[0][0][1]
         # Verify second call was to fallback endpoint
-        assert "extras/object-types" in mock_get.call_args_list[1][0][0]
+        assert "extras/object-types" in mock_get.call_args_list[1][0][1]
         assert result == {"count": 1, "results": [{"id": 1}]}
 
 
@@ -62,7 +62,7 @@ def test_fallback_not_triggered_on_success(client):
     primary_response.json.return_value = {"count": 5, "results": []}
     primary_response.raise_for_status = MagicMock()
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.return_value = primary_response
 
         result = client.get(
@@ -84,7 +84,7 @@ def test_fallback_not_triggered_on_non_404_error(client):
         "Server error", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.return_value = primary_response
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -105,7 +105,7 @@ def test_fallback_not_triggered_on_403_forbidden(client):
         "Forbidden", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.return_value = primary_response
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -125,7 +125,7 @@ def test_fallback_not_triggered_without_fallback_endpoint(client):
         "Not found", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.return_value = primary_response
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -142,7 +142,7 @@ def test_fallback_not_triggered_with_empty_fallback(client):
         "Not found", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.return_value = primary_response
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -168,7 +168,7 @@ def test_fallback_error_propagates(client):
         "Fallback failed", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         with pytest.raises(httpx.HTTPStatusError, match="Fallback failed"):
@@ -191,7 +191,7 @@ def test_both_endpoints_404_propagates_fallback_error(client):
         "Not found", request=MagicMock(), response=MagicMock()
     )
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -218,7 +218,7 @@ def test_fallback_preserves_params(client):
     fallback_response.json.return_value = {"results": []}
     fallback_response.raise_for_status = MagicMock()
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         client.get(
@@ -243,7 +243,7 @@ def test_fallback_preserves_id_in_url(client):
     fallback_response.json.return_value = {"id": 123, "name": "test"}
     fallback_response.raise_for_status = MagicMock()
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         client.get(
@@ -253,8 +253,8 @@ def test_fallback_preserves_id_in_url(client):
         )
 
         # Both URLs should include the ID
-        primary_url = mock_get.call_args_list[0][0][0]
-        fallback_url = mock_get.call_args_list[1][0][0]
+        primary_url = mock_get.call_args_list[0][0][1]
+        fallback_url = mock_get.call_args_list[1][0][1]
         assert "/123/" in primary_url
         assert "/123/" in fallback_url
 
@@ -274,7 +274,7 @@ def test_fallback_builds_correct_url(client):
     fallback_response.json.return_value = {"results": []}
     fallback_response.raise_for_status = MagicMock()
 
-    with patch.object(client.session, "get") as mock_get:
+    with patch.object(client.session, "request") as mock_get:
         mock_get.side_effect = [primary_response, fallback_response]
 
         client.get(
@@ -282,5 +282,5 @@ def test_fallback_builds_correct_url(client):
             fallback_endpoint="extras/object-types",
         )
 
-        fallback_url = mock_get.call_args_list[1][0][0]
+        fallback_url = mock_get.call_args_list[1][0][1]
         assert fallback_url == "https://netbox.example.com/api/extras/object-types/"

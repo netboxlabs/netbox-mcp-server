@@ -1,0 +1,61 @@
+# Local NetBox for testing per-user token passthrough. Not for production use.
+# Start:  docker compose up -d --wait   (NetBox on http://127.0.0.1:18080, admin/admin)
+# Other NetBox versions: NETBOX_VERSION=v4.6.10 docker compose up -d --wait
+# Seed:   uv run python testbed/seed.py
+name: netbox-mcp-testbed
+
+x-netbox-env: &netbox-env
+  DB_HOST: postgres
+  DB_NAME: netbox
+  DB_USER: netbox
+  DB_PASSWORD: netbox
+  REDIS_HOST: redis
+  REDIS_CACHE_HOST: redis
+  REDIS_PASSWORD: ""
+  REDIS_CACHE_PASSWORD: ""
+  SECRET_KEY: testbed-secret-key-not-for-production-0123456789abcdefghijklmn
+  API_TOKEN_PEPPER_1: testbed-pepper-not-for-production-0123456789abcdefghij
+  SUPERUSER_NAME: admin
+  SUPERUSER_EMAIL: admin@example.com
+  SUPERUSER_PASSWORD: admin
+  SKIP_SUPERUSER: "false"
+  # NetBox < 4.5 images otherwise create a well-known admin token (0123456789abcdef...)
+  SUPERUSER_API_TOKEN: 017ebe096b5e20e191154fe22de7fabe08aedbaf
+
+services:
+  netbox:
+    image: netboxcommunity/netbox:${NETBOX_VERSION:-v4.7.4}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *netbox-env
+    ports:
+      - "127.0.0.1:18080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/login/ || exit 1"]
+      start_period: 300s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: valkey/valkey:8-alpine
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

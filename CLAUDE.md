@@ -117,7 +117,7 @@ def netbox_get_objects(object_type: str, filters: dict) -> list[dict]:
     if object_type not in NETBOX_OBJECT_TYPES:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-    return netbox.get(NETBOX_OBJECT_TYPES[object_type], params=filters)
+    return get_netbox_client().get(NETBOX_OBJECT_TYPES[object_type], params=filters)
 
 
 # ❌ Avoid: Missing types, generic names, silent failures, no docstrings
@@ -132,6 +132,7 @@ def get_stuff(t, f):
 
 - **Abstraction layer**: `NetBoxClientBase` defines interface for future ORM implementation
 - **Read-only by design**: Only GET operations exposed; no create/update/delete tools
+- **Per-request client**: Tools call `get_netbox_client()`, never the global `netbox`, so token passthrough uses the caller's token
 - **Environment-based config**: All secrets via environment variables, never hardcoded
 - **Explicit object mapping**: `NETBOX_OBJECT_TYPES` dictionary maintains allowed types
 
@@ -142,7 +143,8 @@ def get_stuff(t, f):
 1. Define tool function with `@mcp.tool` decorator
 2. Include comprehensive docstring with args, return types, and examples
 3. Validate inputs before calling NetBox client
-4. Return structured data (dict or list); let FastMCP handle serialization
+4. Get the client with `get_netbox_client()` (required for token passthrough)
+5. Return structured data (dict or list); let FastMCP handle serialization
 
 ### Tool Naming Convention
 
@@ -168,7 +170,9 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 ## Environment Variables
 
 - `NETBOX_URL`: Base URL of NetBox instance (e.g., `https://netbox.example.com/`)
-- `NETBOX_TOKEN`: Read-only API token with appropriate permissions
+- `NETBOX_TOKEN`: Read-only API token with appropriate permissions (unset when `TOKEN_PASSTHROUGH` is on)
+- `TOKEN_PASSTHROUGH`: HTTP only; use each client's own NetBox token so NetBox applies per-user permissions
+- `TOKEN_CACHE_TTL` / `FORWARD_CLIENT_IP`: passthrough tuning (token check cache seconds; send client IP to NetBox for token allowed-IP rules)
 - `LOG_LEVEL`: Logging verbosity (default: `INFO`, options: `DEBUG`, `WARNING`, `ERROR`)
 
 ## Security Considerations
@@ -181,7 +185,9 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 
 ## Testing Philosophy
 
-Currently no automated test suite. When adding tests:
+Unit tests live in `tests/` (`uv run pytest`). End-to-end tests for token passthrough
+(`tests/integration/`) run against the local Docker NetBox in `testbed/` and are
+skipped when it is not running; see "Local NetBox Testbed" in README.md. When adding tests:
 
 - Test tool behavior with real NetBox instance (Docker-based test environment)
 - Mock external NetBox API calls only when necessary
@@ -344,8 +350,15 @@ mcp_tool(
 
 ## Troubleshooting
 
-**"NETBOX_URL and NETBOX_TOKEN environment variables must be set"**
-→ Set environment variables before running server
+**"netbox_token is required unless TOKEN_PASSTHROUGH is enabled"**
+→ Set NETBOX_URL and NETBOX_TOKEN, or enable TOKEN_PASSTHROUGH with TRANSPORT=http
+
+**401 in token passthrough mode**
+→ NetBox rejected the client's token (invalid, disabled, expired, or not allowed from this IP)
+→ For tokens with Allowed IPs, see FORWARD_CLIENT_IP in README.md
+
+**503 in token passthrough mode**
+→ The server could not reach NetBox to check the token; check NETBOX_URL and NetBox health
 
 **"Invalid object_type"**
 → Check `NETBOX_OBJECT_TYPES` dictionary for supported types
