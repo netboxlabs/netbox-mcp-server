@@ -24,7 +24,8 @@
     // Python
     {
       description: 'Group non-major Python dependency updates',
-      matchManagers: ['pep621', 'uv'],
+      // pep621 also maintains uv.lock; Renovate has no separate 'uv' manager
+      matchManagers: ['pep621'],
       matchUpdateTypes: ['minor', 'patch'],
       groupName: 'non-major Python dependencies',
     },
