@@ -161,28 +161,63 @@ class NetBoxRestClient(NetBoxClientBase):
     # })
     # print(f"Created site: {new_site.get('name')} (ID: {new_site.get('id')})")
 
-    def __init__(self, url: str, token: str, verify_ssl: bool = True):
+    def __init__(
+        self,
+        url: str,
+        token: str | None,
+        verify_ssl: bool = True,
+        session: httpx.Client | None = None,
+        client_ip: str | None = None,
+    ):
         """
         Initialize the REST API client.
 
         Args:
             url: The base URL of the NetBox instance (e.g., 'https://netbox.example.com')
-            token: API token for authentication
+            token: API token for authentication, or None to send no credentials
             verify_ssl: Whether to verify SSL certificates
+            session: Optional HTTP session to share with other clients (see with_token)
+            client_ip: Optional end-user IP to send as X-Forwarded-For, so NetBox can
+                       check it against the token's allowed IPs
         """
         self.base_url = url.rstrip("/")
         self.api_url = f"{self.base_url}/api"
         self.token = token
         self.verify_ssl = verify_ssl
-        auth_scheme = "Bearer" if token.startswith("nbt_") else "Token"
-        self.session = httpx.Client(verify=self.verify_ssl)
+        self.session = session or httpx.Client(verify=self.verify_ssl)
         self.session.headers.update(
             {
-                "Authorization": f"{auth_scheme} {token}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
         )
+        # Sent per request instead of on the session, so clients sharing a
+        # session can each use their own token.
+        self.request_headers: dict[str, str] = {}
+        if token:
+            auth_scheme = "Bearer" if token.startswith("nbt_") else "Token"
+            self.request_headers["Authorization"] = f"{auth_scheme} {token}"
+        if client_ip:
+            self.request_headers["X-Forwarded-For"] = client_ip
+
+    def with_token(self, token: str, client_ip: str | None = None) -> "NetBoxRestClient":
+        """
+        Return a client that uses another token but shares this client's connections.
+
+        Args:
+            token: API token for the new client
+            client_ip: Optional end-user IP to send as X-Forwarded-For
+
+        Returns:
+            A NetBoxRestClient authenticated with the given token
+        """
+        return NetBoxRestClient(
+            self.base_url, token, self.verify_ssl, session=self.session, client_ip=client_ip
+        )
+
+    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Send a request with this client's per-request headers."""
+        return self.session.request(method, url, headers=self.request_headers, **kwargs)
 
     def _build_url(self, endpoint: str, id: int | None = None) -> str:
         """Build the full URL for an API request."""
@@ -220,12 +255,12 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params)
+        response = self._request("GET", url, params=params)
 
         # Try fallback endpoint if primary returns 404
         if response.status_code == 404 and fallback_endpoint:
             fallback_url = self._build_url(fallback_endpoint, id)
-            response = self.session.get(fallback_url, params=params)
+            response = self._request("GET", fallback_url, params=params)
 
         response.raise_for_status()
 
@@ -246,7 +281,7 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
-        response = self.session.post(url, json=data)
+        response = self._request("POST", url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -266,7 +301,7 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.patch(url, json=data)
+        response = self._request("PATCH", url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -285,7 +320,7 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.delete(url)
+        response = self._request("DELETE", url)
         response.raise_for_status()
         return response.status_code == 204
 
@@ -304,7 +339,7 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.post(url, json=data)
+        response = self._request("POST", url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -323,7 +358,7 @@ class NetBoxRestClient(NetBoxClientBase):
             httpx.HTTPStatusError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.patch(url, json=data)
+        response = self._request("PATCH", url, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -343,6 +378,6 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         url = f"{self._build_url(endpoint)}bulk/"
         data = [{"id": id} for id in ids]
-        response = self.session.delete(url, json=data)
+        response = self._request("DELETE", url, json=data)
         response.raise_for_status()
         return response.status_code == 204
