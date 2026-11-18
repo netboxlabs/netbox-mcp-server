@@ -5,10 +5,12 @@ plugin models and returns them in the same format as NETBOX_OBJECT_TYPES.
 """
 
 from unittest.mock import MagicMock
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
+from netbox_mcp_server.netbox_client import NetBoxRestClient
 from netbox_mcp_server.server import discover_plugin_types
 
 
@@ -33,7 +35,10 @@ def _plugin_row(
 @pytest.fixture
 def client():
     """Mock NetBox client with a configurable get() method."""
-    return MagicMock()
+    mock_client = MagicMock()
+    mock_client.base_url = "https://netbox.example.com"
+    mock_client.api_url = "https://netbox.example.com/api"
+    return mock_client
 
 
 # ============================================================================
@@ -184,6 +189,101 @@ def test_converts_rest_url_to_endpoint(client, rest_url, expected_endpoint):
     assert result["plug.thing"]["endpoint"] == expected_endpoint
 
 
+@pytest.mark.parametrize(
+    ("base_url", "rest_url", "expected_endpoint", "expected_plugin_path"),
+    [
+        (
+            "https://netbox.example.com",
+            "/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/netbox",
+            "/netbox/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/netbox/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/team/netbox",
+            "/team/netbox/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/team/netbox/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/plugins",
+            "/plugins/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/plugins/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/plugins",
+            "/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/plugins/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/api",
+            "/api/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/api/api/plugins/netbox-dns/zones/",
+        ),
+        (
+            "https://netbox.example.com/api",
+            "/api/plugins/netbox-dns/zones/",
+            "plugins/netbox-dns/zones",
+            "/api/api/plugins/netbox-dns/zones/",
+        ),
+    ],
+)
+def test_discovered_endpoint_is_requested_once_under_api_base(
+    base_url, rest_url, expected_endpoint, expected_plugin_path
+):
+    """Discovered REST paths remain usable for root and BASE_PATH deployments."""
+    requested_paths = []
+
+    def handler(request):
+        requested_paths.append(request.url.path)
+        if request.url.path.endswith("/object-types/"):
+            return httpx.Response(
+                200,
+                json={
+                    "results": [_plugin_row("netbox_dns", "zone", rest_url)],
+                    "next": None,
+                },
+            )
+        return httpx.Response(200, json={})
+
+    client = NetBoxRestClient(base_url, "test-token")
+    client.session.close()
+    client.session = httpx.Client(transport=httpx.MockTransport(handler))
+    try:
+        plugin_types = discover_plugin_types(client)
+        assert plugin_types["netbox_dns.zone"]["endpoint"] == expected_endpoint
+        client.get(plugin_types["netbox_dns.zone"]["endpoint"])
+    finally:
+        client.session.close()
+
+    assert requested_paths == [
+        f"{urlsplit(base_url).path.rstrip('/')}/api/core/object-types/",
+        expected_plugin_path,
+    ]
+
+
+def test_base_path_prefix_match_requires_a_segment_boundary(client):
+    """A similarly named path prefix must remain part of the endpoint."""
+    client.base_url = "https://netbox.example.com/netbox"
+    client.api_url = "https://netbox.example.com/netbox/api"
+    client.get.return_value = {
+        "results": [_plugin_row("plug", "thing", "/netboxish/api/plugins/example/things/")],
+        "next": None,
+    }
+
+    result = discover_plugin_types(client)
+
+    assert result["plug.thing"]["endpoint"] == "netboxish/api/plugins/example/things"
+
+
 # ============================================================================
 # Pagination
 # ============================================================================
@@ -193,7 +293,7 @@ def test_follows_pagination(client):
     """Discovery paginates until `next` is null."""
     page_1 = {
         "results": [_plugin_row("plug_a", "thing", "/api/plugins/a/things/")],
-        "next": "https://netbox.example.com/api/core/object-types/?limit=100&offset=100",
+        "next": "https://netbox.example.com/api/core/object-types/?limit=100&offset=1",
     }
     page_2 = {
         "results": [_plugin_row("plug_b", "thing", "/api/plugins/b/things/")],
@@ -207,7 +307,47 @@ def test_follows_pagination(client):
     assert client.get.call_count == 2
     # Second call should have advanced the offset
     second_call_params = client.get.call_args_list[1].kwargs["params"]
-    assert second_call_params["offset"] == 100
+    assert second_call_params["offset"] == 1
+
+
+@pytest.mark.parametrize("page_size", [2, 100])
+def test_discovers_all_types_when_server_caps_page_size(client: MagicMock, page_size: int) -> None:
+    """NetBox may return fewer rows than the requested page limit."""
+    rows = [
+        _plugin_row("plug", f"type_{index}", f"/api/plugins/plug/type-{index}/")
+        for index in range(5)
+    ]
+
+    def get_page(endpoint: str, params: dict, fallback_endpoint: str | None = None) -> dict:
+        offset = params["offset"]
+        results = rows[offset : offset + page_size]
+        next_offset = offset + len(results)
+        return {
+            "results": results,
+            "next": (
+                f"https://netbox.example.com/api/core/object-types/?offset={next_offset}"
+                if next_offset < len(rows)
+                else None
+            ),
+        }
+
+    client.get.side_effect = get_page
+
+    result = discover_plugin_types(client)
+
+    assert set(result) == {f"plug.type_{index}" for index in range(5)}
+    assert client.get.call_count == (len(rows) + page_size - 1) // page_size
+
+
+def test_stops_on_empty_page_with_next_link(client: MagicMock) -> None:
+    """An empty page cannot advance discovery to another offset."""
+    client.get.return_value = {
+        "results": [],
+        "next": "https://netbox.example.com/api/core/object-types/?offset=100",
+    }
+
+    assert discover_plugin_types(client) == {}
+    assert client.get.call_count == 1
 
 
 def test_stops_when_next_missing(client):

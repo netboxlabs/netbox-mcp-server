@@ -48,6 +48,11 @@ NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<token> uv run netbox-mcp-se
 # Alternative: module execution
 uv run -m netbox_mcp_server
 
+# Lint, format check and tests (the checks CI runs)
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+
 # Add to Claude Code (for development/testing)
 claude mcp add --transport stdio netbox \
   --env NETBOX_URL=https://netbox.example.com/ \
@@ -91,7 +96,7 @@ This project uses [python-semantic-release](https://python-semantic-release.read
 
 - **Type hints required**: All function parameters and return types must be annotated
 - **Docstrings**: Use Google-style docstrings for all public functions and classes
-- **Line length**: 88 characters maximum (Ruff/Black standard)
+- **Line length**: 100 characters (Ruff formatter, set in `pyproject.toml`; E501 is not enforced, so long strings may exceed it)
 - **Naming conventions**:
   - Functions and variables: `snake_case`
   - Classes: `PascalCase`
@@ -118,6 +123,7 @@ def netbox_get_objects(object_type: str, filters: dict) -> list[dict]:
         valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
         raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
     return netbox.get(NETBOX_OBJECT_TYPES[object_type], params=filters)
+
 
 # ❌ Avoid: Missing types, generic names, silent failures, no docstrings
 def get_stuff(t, f):
@@ -180,7 +186,7 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 
 ## Testing Philosophy
 
-Currently no automated test suite. When adding tests:
+The pytest suite in `tests/` does not need a running NetBox instance; NetBox API calls are mocked. CI runs it on Python 3.11-3.14. When adding tests:
 
 - Test tool behavior with real NetBox instance (Docker-based test environment)
 - Mock external NetBox API calls only when necessary
@@ -330,24 +336,15 @@ These examples show how LLMs interact with MCP tools (conceptual format):
 
 ```python
 # Get all devices in a site
-mcp_tool("netbox_get_objects", {
-    "object_type": "devices",
-    "filters": {"site": "equinix-dc14"}
-})
+mcp_tool("netbox_get_objects", {"object_type": "devices", "filters": {"site": "equinix-dc14"}})
 
 # Get specific device by ID
-mcp_tool("netbox_get_object_by_id", {
-    "object_type": "devices",
-    "object_id": 123
-})
+mcp_tool("netbox_get_object_by_id", {"object_type": "devices", "object_id": 123})
 
 # Find recent changes
-mcp_tool("netbox_get_changelogs", {
-    "filters": {
-        "action": "update",
-        "time_after": "2025-01-01T00:00:00Z"
-    }
-})
+mcp_tool(
+    "netbox_get_changelogs", {"filters": {"action": "update", "time_after": "2025-01-01T00:00:00Z"}}
+)
 ```
 
 ## Troubleshooting
