@@ -2,6 +2,110 @@
 
 <!-- version list -->
 
+## v1.2.3 (2026-11-18)
+
+### Bug Fixes
+
+- Honor capped page sizes during plugin discovery
+  ([#195](https://github.com/netboxlabs/netbox-mcp-server/pull/195),
+  [`ccbefd3`](https://github.com/netboxlabs/netbox-mcp-server/commit/ccbefd30bec7f07c2e0ceb01ad469543705cb747))
+
+- Normalize discovered plugin paths for NetBox base paths
+  ([#190](https://github.com/netboxlabs/netbox-mcp-server/pull/190),
+  [`55875d5`](https://github.com/netboxlabs/netbox-mcp-server/commit/55875d526bc60560d7b49609f891a90621b5bf77))
+
+- Preserve relative plugin endpoints under colliding base paths
+  ([#190](https://github.com/netboxlabs/netbox-mcp-server/pull/190),
+  [`55875d5`](https://github.com/netboxlabs/netbox-mcp-server/commit/55875d526bc60560d7b49609f891a90621b5bf77))
+
+- Validate changelog filters before querying NetBox
+  ([#192](https://github.com/netboxlabs/netbox-mcp-server/pull/192),
+  [`b5218b0`](https://github.com/netboxlabs/netbox-mcp-server/commit/b5218b008f70e3c9db3b9d30607d7bc56866df62))
+
+- Validate changelog lookup filters before querying NetBox
+  ([#192](https://github.com/netboxlabs/netbox-mcp-server/pull/192),
+  [`b5218b0`](https://github.com/netboxlabs/netbox-mcp-server/commit/b5218b008f70e3c9db3b9d30607d7bc56866df62))
+
+- **ci**: Dispatch docker-publish after tagging a release
+  ([#212](https://github.com/netboxlabs/netbox-mcp-server/pull/212),
+  [`8e4716c`](https://github.com/netboxlabs/netbox-mcp-server/commit/8e4716c59667e9cdab80f2682858d6c548568488))
+
+- **client**: Send bulk requests to NetBox list endpoints
+  ([#196](https://github.com/netboxlabs/netbox-mcp-server/pull/196),
+  [`65fb461`](https://github.com/netboxlabs/netbox-mcp-server/commit/65fb46119510e62ac31f97588f5f9f867963284d))
+
+- **deps**: Batch security updates for 9 Python dependencies
+  ([#210](https://github.com/netboxlabs/netbox-mcp-server/pull/210),
+  [`6dd379f`](https://github.com/netboxlabs/netbox-mcp-server/commit/6dd379f54764177dedab9fc852224f223f7c8419))
+
+- **http**: Allow CORS requests to terminate MCP sessions
+  ([#193](https://github.com/netboxlabs/netbox-mcp-server/pull/193),
+  [`6edd97d`](https://github.com/netboxlabs/netbox-mcp-server/commit/6edd97d925c3a3f4980b35499d33b3f963b71714))
+
+- **http**: Allow CORS session termination requests
+  ([#193](https://github.com/netboxlabs/netbox-mcp-server/pull/193),
+  [`6edd97d`](https://github.com/netboxlabs/netbox-mcp-server/commit/6edd97d925c3a3f4980b35499d33b3f963b71714))
+
+- **renovate**: Drop invalid 'uv' manager from Python group rule
+  ([#209](https://github.com/netboxlabs/netbox-mcp-server/pull/209),
+  [`2fde0f0`](https://github.com/netboxlabs/netbox-mcp-server/commit/2fde0f08e9c08cc731d305b20dda88c6d376fb59))
+
+- **tools**: Declare readOnlyHint on all tools
+  ([#207](https://github.com/netboxlabs/netbox-mcp-server/pull/207),
+  [`a9784fc`](https://github.com/netboxlabs/netbox-mcp-server/commit/a9784fcd40f064ab52c7401d52a20ad7409b46d7))
+
+### Chores
+
+- **deps**: Update dependency dnspython to v2.9.2 [security]
+  ([#213](https://github.com/netboxlabs/netbox-mcp-server/pull/213),
+  [`d93074d`](https://github.com/netboxlabs/netbox-mcp-server/commit/d93074db3aec30490d388f71d0c66ce4cce1e235))
+
+- **deps**: Update dependency opentelemetry-api to v1.45.2 [security]
+  ([#214](https://github.com/netboxlabs/netbox-mcp-server/pull/214),
+  [`54dc58a`](https://github.com/netboxlabs/netbox-mcp-server/commit/54dc58a8be5a0448a7df1ade6b7d2269df0c7967))
+
+- **deps**: Update dependency virtualenv to v21.14.13 [security]
+  ([#211](https://github.com/netboxlabs/netbox-mcp-server/pull/211),
+  [`051da83`](https://github.com/netboxlabs/netbox-mcp-server/commit/051da8322fdfc2e91efcb2ea97d414d4fc930693))
+
+### Continuous Integration
+
+- **codeql**: Advanced setup so fork pull requests are analyzed
+  ([#216](https://github.com/netboxlabs/netbox-mcp-server/pull/216),
+  [`b7d6f20`](https://github.com/netboxlabs/netbox-mcp-server/commit/b7d6f2024fbf25fac6d85d755c509b0498657810))
+
+### Documentation
+
+- Fix pagination in the two-step query example
+  ([#197](https://github.com/netboxlabs/netbox-mcp-server/pull/197),
+  [`dc8c295`](https://github.com/netboxlabs/netbox-mcp-server/commit/dc8c29575f1af404287ead4e101c642cf7be5d2d))
+
+- List all NetBox MCP tools ([#187](https://github.com/netboxlabs/netbox-mcp-server/pull/187),
+  [`e423eb6`](https://github.com/netboxlabs/netbox-mcp-server/commit/e423eb6317c555b35b2486da7fc04d263748a240))
+
+- **claude**: Document the existing test suite and 100-column line length
+  ([#188](https://github.com/netboxlabs/netbox-mcp-server/pull/188),
+  [`7a5d222`](https://github.com/netboxlabs/netbox-mcp-server/commit/7a5d2220a82c620a304d326d9714435d3703db70))
+
+- **claude**: Tighten wording of test and line-length notes
+  ([#188](https://github.com/netboxlabs/netbox-mcp-server/pull/188),
+  [`7a5d222`](https://github.com/netboxlabs/netbox-mcp-server/commit/7a5d2220a82c620a304d326d9714435d3703db70))
+
+- **client**: Fix imports and site pagination in the usage guide
+  ([#217](https://github.com/netboxlabs/netbox-mcp-server/pull/217),
+  [`b9d3cfb`](https://github.com/netboxlabs/netbox-mcp-server/commit/b9d3cfbe99b0044132a71718de2a6942be20fddd))
+
+### Testing
+
+- Exercise changelog filter validation over HTTP
+  ([#192](https://github.com/netboxlabs/netbox-mcp-server/pull/192),
+  [`b5218b0`](https://github.com/netboxlabs/netbox-mcp-server/commit/b5218b008f70e3c9db3b9d30607d7bc56866df62))
+
+- **http**: Cover browser preflight and session termination
+  ([#193](https://github.com/netboxlabs/netbox-mcp-server/pull/193),
+  [`6edd97d`](https://github.com/netboxlabs/netbox-mcp-server/commit/6edd97d925c3a3f4980b35499d33b3f963b71714))
+
+
 ## v1.2.2 (2026-10-08)
 
 ### Bug Fixes
