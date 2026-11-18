@@ -1,0 +1,65 @@
+name: CodeQL
+
+# Advanced setup, replacing CodeQL default setup. Default setup does not analyze
+# pull requests from forks, so the "SAST Enforcement" ruleset, which requires
+# CodeQL results on the default branch, left every fork pull request permanently
+# unmergeable: no CodeQL check was ever created for them, so the rule could not
+# be satisfied. The same change was made on netboxlabs/diode for the same reason.
+#
+# Deliberately has no `paths` filter. The ruleset requires results on every pull
+# request, so skipping a run would recreate the same deadlock for pull requests
+# that happen to touch no analyzed code.
+#
+# Languages match what default setup analyzed here: actions and python.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays at 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # A pull request from a fork gets a read-only token. The CodeQL action
+      # uploads results for those runs through the pull request's check run
+      # rather than the security-events API, so fork pull requests still report.
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.32.6
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # Default setup ran the extended suite. Advanced setup would otherwise
+          # fall back to the standard one and quietly narrow the gate.
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.32.6
+        with:
+          category: "/language:${{ matrix.language }}"
