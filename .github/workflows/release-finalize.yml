@@ -71,7 +71,7 @@ jobs:
             --title "v${VERSION}" \
             --notes-file release_notes.md
 
-      # A tag created with GITHUB_TOKEN doesn't trigger the publish workflows'
+      # A tag created with GITHUB_TOKEN doesn't trigger docker-publish's
       # `push: tags` (GitHub blocks workflow runs from GITHUB_TOKEN events),
       # but workflow_dispatch is exempt from that rule.
       - name: Publish Docker image

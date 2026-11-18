@@ -30,7 +30,17 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
 
 1. Create a read-only API token in NetBox with sufficient permissions for the tool to access the data you want to make available via MCP.
 
-2. Install dependencies:
+2. Install the server. The published package runs without a clone:
+
+    ```bash
+    # Run directly with uv
+    uvx netbox-mcp-server
+
+    # Or install with pip
+    pip install netbox-mcp-server
+    ```
+
+    To run from a clone of this repository instead, install dependencies:
 
     ```bash
     # Using UV (recommended)
@@ -40,7 +50,7 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
     pip install -e .
     ```
 
-3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run netbox-mcp-server`
+3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run netbox-mcp-server` (from a clone), or the same with `uvx netbox-mcp-server` for the published package.
 
 4. Add the MCP server to your LLM client. See below for some examples with Claude.
 
@@ -59,7 +69,7 @@ claude mcp add --transport stdio netbox \
 
 **Important notes:**
 
-- Replace `/path/to/netbox-mcp-server` with the absolute path to your local clone
+- Replace `/path/to/netbox-mcp-server` with the absolute path to your local clone, or replace everything after `--` with `uvx netbox-mcp-server` to use the published package
 - The `--` separator distinguishes Claude Code flags from the server command
 - Use `--scope project` to share the configuration via `.mcp.json` in version control
 - Use `--scope user` to make it available across all your projects (default is `local`)
