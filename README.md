@@ -5,7 +5,7 @@
 > - Change `uv run server.py` to `uv run netbox-mcp-server`
 > - Update Claude Desktop/Code configs to use `netbox-mcp-server` instead of `server.py`
 > - Docker users: rebuild images with updated CMD
-> - See [CHANGELOG.md](CHANGELOG.md) for full details
+> - See [CHANGELOG.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CHANGELOG.md) for full details
 
 This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP.
 
@@ -24,7 +24,7 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
 | `netbox_get_changelogs` | Retrieves change history records (audit trail) based on filters |
 | `netbox_search_objects` | Searches NetBox objects by a text query, optionally limited by object type and returned fields |
 
-> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
+> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CONTRIBUTING.md) for the full scope statement and rationale.
 
 ## Usage
 
@@ -399,7 +399,7 @@ If discovery fails for any reason (network error, insufficient permissions, unsu
 
 ## Development
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing new features. We encourage filing an issue for discussion first to confirm scope fit.
+Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CONTRIBUTING.md) before proposing new features. We encourage filing an issue for discussion first to confirm scope fit.
 
 If your use case needs capabilities outside this project's scope, forking under Apache 2.0 is an actively supported path.
 

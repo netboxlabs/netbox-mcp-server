@@ -1,7 +1,8 @@
 name: Publish to PyPI
 
-# Publishes the sdist and wheel to PyPI on every `v*.*.*` tag created by
-# `release-finalize.yml`. Uses PyPI Trusted Publishers (OIDC) — no API
+# Publishes the sdist and wheel to PyPI for a `v*.*.*` tag. Dispatched by
+# `release-finalize.yml` against the new tag (a tag created with GITHUB_TOKEN
+# does not fire `push: tags`); the tag trigger covers manually pushed tags. Uses PyPI Trusted Publishers (OIDC) — no API
 # token is stored in the repo; the `id-token: write` permission lets the
 # publish job mint a short-lived credential that PyPI accepts.
 #
@@ -22,6 +23,7 @@ name: Publish to PyPI
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,10 +40,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
       - name: Build distributions
         run: uv build
@@ -57,6 +59,8 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: build
+    # Never publish from a branch (e.g. a manual dispatch on main).
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -74,9 +78,9 @@ jobs:
           path: dist/
 
       - name: Generate SLSA build provenance attestation
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: "dist/*"
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
