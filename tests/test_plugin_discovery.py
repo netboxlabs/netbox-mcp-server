@@ -193,7 +193,7 @@ def test_follows_pagination(client):
     """Discovery paginates until `next` is null."""
     page_1 = {
         "results": [_plugin_row("plug_a", "thing", "/api/plugins/a/things/")],
-        "next": "https://netbox.example.com/api/core/object-types/?limit=100&offset=100",
+        "next": "https://netbox.example.com/api/core/object-types/?limit=100&offset=1",
     }
     page_2 = {
         "results": [_plugin_row("plug_b", "thing", "/api/plugins/b/things/")],
@@ -207,7 +207,47 @@ def test_follows_pagination(client):
     assert client.get.call_count == 2
     # Second call should have advanced the offset
     second_call_params = client.get.call_args_list[1].kwargs["params"]
-    assert second_call_params["offset"] == 100
+    assert second_call_params["offset"] == 1
+
+
+@pytest.mark.parametrize("page_size", [2, 100])
+def test_discovers_all_types_when_server_caps_page_size(client: MagicMock, page_size: int) -> None:
+    """NetBox may return fewer rows than the requested page limit."""
+    rows = [
+        _plugin_row("plug", f"type_{index}", f"/api/plugins/plug/type-{index}/")
+        for index in range(5)
+    ]
+
+    def get_page(endpoint: str, params: dict, fallback_endpoint: str | None = None) -> dict:
+        offset = params["offset"]
+        results = rows[offset : offset + page_size]
+        next_offset = offset + len(results)
+        return {
+            "results": results,
+            "next": (
+                f"https://netbox.example.com/api/core/object-types/?offset={next_offset}"
+                if next_offset < len(rows)
+                else None
+            ),
+        }
+
+    client.get.side_effect = get_page
+
+    result = discover_plugin_types(client)
+
+    assert set(result) == {f"plug.type_{index}" for index in range(5)}
+    assert client.get.call_count == (len(rows) + page_size - 1) // page_size
+
+
+def test_stops_on_empty_page_with_next_link(client: MagicMock) -> None:
+    """An empty page cannot advance discovery to another offset."""
+    client.get.return_value = {
+        "results": [],
+        "next": "https://netbox.example.com/api/core/object-types/?offset=100",
+    }
+
+    assert discover_plugin_types(client) == {}
+    assert client.get.call_count == 1
 
 
 def test_stops_when_next_missing(client):
