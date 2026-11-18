@@ -266,6 +266,7 @@ def validate_filters(filters: dict) -> None:
 
 
 @mcp.tool(
+    annotations={"readOnlyHint": True},
     description="""
     Get objects from NetBox based on their type and filters
 
@@ -344,7 +345,7 @@ def validate_filters(filters: dict) -> None:
     + """
 
     See NetBox API documentation for filtering options for each object type.
-    """
+    """,
 )
 def netbox_get_objects(
     object_type: str,
@@ -390,7 +391,7 @@ def netbox_get_objects(
     return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": True})
 def netbox_get_object_by_id(
     object_type: str,
     object_id: int,
@@ -443,7 +444,7 @@ def netbox_get_object_by_id(
     return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": True})
 def netbox_get_changelogs(filters: dict):
     """
     Get object change records (changelogs) from NetBox based on filters.
@@ -506,6 +507,7 @@ def netbox_get_changelogs(filters: dict):
 
 
 @mcp.tool(
+    annotations={"readOnlyHint": True},
     description="""
     Perform global search across NetBox infrastructure.
 
@@ -553,7 +555,7 @@ def netbox_get_changelogs(filters: dict):
             object_types=['dcim.site', 'dcim.location'],
             fields=['id', 'name', 'status']
         )
-    """
+    """,
 )
 def netbox_search_objects(
     query: str,
