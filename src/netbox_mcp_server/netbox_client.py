@@ -161,7 +161,13 @@ class NetBoxRestClient(NetBoxClientBase):
     # })
     # print(f"Created site: {new_site.get('name')} (ID: {new_site.get('id')})")
 
-    def __init__(self, url: str, token: str, verify_ssl: bool = True):
+    def __init__(
+        self,
+        url: str,
+        token: str,
+        verify_ssl: bool = True,
+        host_header: str | None = None,
+    ):
         """
         Initialize the REST API client.
 
@@ -169,6 +175,8 @@ class NetBoxRestClient(NetBoxClientBase):
             url: The base URL of the NetBox instance (e.g., 'https://netbox.example.com')
             token: API token for authentication
             verify_ssl: Whether to verify SSL certificates
+            host_header: Optional Host header override, for when ``url`` points at a
+                tunnel or proxy and NetBox only accepts its public hostname
         """
         self.base_url = url.rstrip("/")
         self.api_url = f"{self.base_url}/api"
@@ -183,6 +191,8 @@ class NetBoxRestClient(NetBoxClientBase):
                 "Accept": "application/json",
             }
         )
+        if host_header:
+            self.session.headers["Host"] = host_header
 
     def _build_url(self, endpoint: str, id: int | None = None) -> str:
         """Build the full URL for an API request."""
