@@ -16,7 +16,6 @@ from netbox_mcp_server.netbox_client import NetBoxRestClient
 from netbox_mcp_server.server import (
     NetBoxTokenVerifier,
     NetBoxUnavailableError,
-    get_client_ip,
     get_netbox_client,
     passthrough_warnings,
 )
@@ -38,8 +37,6 @@ def test_passthrough_without_shared_token_is_valid():
     assert settings.netbox_token is None
     summary = settings.get_effective_config_summary()
     assert summary["token_passthrough"] is True
-    assert summary["token_cache_ttl"] == 60.0
-    assert summary["forward_client_ip"] is False
 
 
 def test_passthrough_requires_http_transport():
@@ -60,17 +57,6 @@ def test_passthrough_rejects_mcp_auth_token():
 def test_passthrough_rejects_plugin_discovery():
     with pytest.raises(ValidationError, match="ENABLE_PLUGIN_DISCOVERY"):
         _settings(transport="http", token_passthrough=True, enable_plugin_discovery=True)
-
-
-def test_forward_client_ip_requires_passthrough():
-    with pytest.raises(ValidationError, match="FORWARD_CLIENT_IP requires TOKEN_PASSTHROUGH"):
-        _settings(netbox_token="shared", forward_client_ip=True)
-
-
-@pytest.mark.parametrize("ttl", [-1, float("inf"), float("nan")])
-def test_token_cache_ttl_must_be_finite_and_not_negative(ttl):
-    with pytest.raises(ValidationError, match="token_cache_ttl"):
-        _settings(transport="http", token_passthrough=True, token_cache_ttl=ttl)
 
 
 @pytest.mark.parametrize(
@@ -114,11 +100,6 @@ def test_with_token_shares_session_and_uses_own_auth():
     assert "Authorization" not in base.session.headers
 
 
-def test_with_token_forwards_client_ip():
-    client = NetBoxRestClient(URL, token=None).with_token("nbt_key.secret", "203.0.113.7")
-    assert client.request_headers["X-Forwarded-For"] == "203.0.113.7"
-
-
 def test_requests_send_the_clients_own_token():
     base = NetBoxRestClient(URL, token=None)
     user_client = base.with_token("nbt_key.secret")
@@ -134,10 +115,10 @@ def test_requests_send_the_clients_own_token():
 # ===== Verifier =====
 
 
-def _verifier_with(get: MagicMock, **kwargs) -> NetBoxTokenVerifier:
+def _verifier_with(get: MagicMock) -> NetBoxTokenVerifier:
     client = MagicMock()
     client.with_token.return_value.get = get
-    return NetBoxTokenVerifier(client, **kwargs)
+    return NetBoxTokenVerifier(client)
 
 
 def _http_error(status: int) -> httpx.HTTPStatusError:
@@ -226,28 +207,24 @@ def test_verifier_does_not_cache_rejected_tokens():
     assert get.call_count == 2
 
 
-def test_verifier_with_zero_ttl_checks_every_request():
+def test_verifier_checks_netbox_again_after_cache_expires():
     get = MagicMock(return_value={"username": "alice"})
-    verifier = _verifier_with(get, cache_ttl=0)
+    verifier = _verifier_with(get)
+    start = 1000.0
 
-    asyncio.run(verifier.verify_token("nbt_alice.secret"))
-    asyncio.run(verifier.verify_token("nbt_alice.secret"))
+    with patch.object(server.time, "monotonic", return_value=start):
+        asyncio.run(verifier.verify_token("nbt_alice.secret"))
+    with patch.object(
+        server.time, "monotonic", return_value=start + server.TOKEN_CACHE_SECONDS - 1
+    ):
+        asyncio.run(verifier.verify_token("nbt_alice.secret"))
+    assert get.call_count == 1
 
+    with patch.object(
+        server.time, "monotonic", return_value=start + server.TOKEN_CACHE_SECONDS + 1
+    ):
+        asyncio.run(verifier.verify_token("nbt_alice.secret"))
     assert get.call_count == 2
-    assert verifier._cache == {}
-
-
-def test_verifier_forwards_client_ip_and_caches_per_ip():
-    get = MagicMock(return_value={"username": "alice"})
-    verifier = _verifier_with(get, forward_client_ip=True)
-
-    for ip in ("198.51.100.1", "198.51.100.1", "198.51.100.2"):
-        with patch.object(server, "get_client_ip", return_value=ip):
-            asyncio.run(verifier.verify_token("nbt_alice.secret"))
-
-    assert get.call_count == 2
-    ips = [c.args[1] for c in verifier._client.with_token.call_args_list]
-    assert ips == ["198.51.100.1", "198.51.100.2"]
 
 
 def _app_with(verifier: NetBoxTokenVerifier) -> TestClient:
@@ -304,14 +281,6 @@ def test_accepted_token_reaches_mcp():
 # ===== Per-request client =====
 
 
-def test_get_client_ip_disabled_returns_none():
-    assert get_client_ip(False) is None
-
-
-def test_get_client_ip_outside_request_returns_none():
-    assert get_client_ip(True) is None
-
-
 def test_get_netbox_client_uses_shared_client_without_passthrough():
     shared = MagicMock()
     with patch.object(server, "netbox", shared), patch.object(server, "token_passthrough", False):
@@ -325,13 +294,11 @@ def test_get_netbox_client_uses_callers_token_with_passthrough():
     with (
         patch.object(server, "netbox", base),
         patch.object(server, "token_passthrough", True),
-        patch.object(server, "forward_client_ip", True),
         patch.object(server, "get_access_token", return_value=access_token),
-        patch.object(server, "get_client_ip", return_value="198.51.100.9"),
     ):
         client = get_netbox_client()
 
-    base.with_token.assert_called_once_with("nbt_bob.secret", "198.51.100.9")
+    base.with_token.assert_called_once_with("nbt_bob.secret")
     assert client is base.with_token.return_value
 
 

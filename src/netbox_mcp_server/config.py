@@ -36,17 +36,6 @@ class Settings(BaseSettings):
     permissions. Only valid with transport='http'.
     """
 
-    token_cache_ttl: float = Field(default=60.0, ge=0, allow_inf_nan=False)
-    """Seconds to remember a passthrough token NetBox accepted (0 checks every request)"""
-
-    forward_client_ip: bool = False
-    """Send each client's IP to NetBox as X-Forwarded-For in token passthrough mode.
-
-    Lets NetBox enforce a token's allowed IPs against the real user instead of this
-    server. Behind a reverse proxy, set FORWARDED_ALLOW_IPS so the client IP is taken
-    from the proxy's X-Forwarded-For header.
-    """
-
     # ===== Transport Settings =====
     transport: Literal["stdio", "http"] = "stdio"
     """MCP transport protocol to use (stdio for Claude Desktop, http for web clients)"""
@@ -133,8 +122,6 @@ class Settings(BaseSettings):
         if not self.token_passthrough:
             if self.netbox_token is None:
                 raise ValueError("netbox_token is required unless TOKEN_PASSTHROUGH is enabled")
-            if self.forward_client_ip:
-                raise ValueError("FORWARD_CLIENT_IP requires TOKEN_PASSTHROUGH")
             return self
 
         if self.transport != "http":
@@ -183,13 +170,6 @@ class Settings(BaseSettings):
             "enable_plugin_discovery": self.enable_plugin_discovery,
             "log_level": self.log_level,
         }
-        if self.token_passthrough:
-            summary.update(
-                {
-                    "token_cache_ttl": self.token_cache_ttl,
-                    "forward_client_ip": self.forward_client_ip,
-                }
-            )
         if self.transport == "http":
             summary.update(
                 {

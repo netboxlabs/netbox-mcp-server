@@ -167,7 +167,6 @@ class NetBoxRestClient(NetBoxClientBase):
         token: str | None,
         verify_ssl: bool = True,
         session: httpx.Client | None = None,
-        client_ip: str | None = None,
     ):
         """
         Initialize the REST API client.
@@ -177,8 +176,6 @@ class NetBoxRestClient(NetBoxClientBase):
             token: API token for authentication, or None to send no credentials
             verify_ssl: Whether to verify SSL certificates
             session: Optional HTTP session to share with other clients (see with_token)
-            client_ip: Optional end-user IP to send as X-Forwarded-For, so NetBox can
-                       check it against the token's allowed IPs
         """
         self.base_url = url.rstrip("/")
         self.api_url = f"{self.base_url}/api"
@@ -197,23 +194,18 @@ class NetBoxRestClient(NetBoxClientBase):
         if token:
             auth_scheme = "Bearer" if token.startswith("nbt_") else "Token"
             self.request_headers["Authorization"] = f"{auth_scheme} {token}"
-        if client_ip:
-            self.request_headers["X-Forwarded-For"] = client_ip
 
-    def with_token(self, token: str, client_ip: str | None = None) -> "NetBoxRestClient":
+    def with_token(self, token: str) -> "NetBoxRestClient":
         """
         Return a client that uses another token but shares this client's connections.
 
         Args:
             token: API token for the new client
-            client_ip: Optional end-user IP to send as X-Forwarded-For
 
         Returns:
             A NetBoxRestClient authenticated with the given token
         """
-        return NetBoxRestClient(
-            self.base_url, token, self.verify_ssl, session=self.session, client_ip=client_ip
-        )
+        return NetBoxRestClient(self.base_url, token, self.verify_ssl, session=self.session)
 
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Send a request with this client's per-request headers."""

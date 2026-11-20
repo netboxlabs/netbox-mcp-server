@@ -177,7 +177,6 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 - `NETBOX_URL`: Base URL of NetBox instance (e.g., `https://netbox.example.com/`)
 - `NETBOX_TOKEN`: Read-only API token with appropriate permissions (unset when `TOKEN_PASSTHROUGH` is on)
 - `TOKEN_PASSTHROUGH`: HTTP only; use each client's own NetBox token so NetBox applies per-user permissions
-- `TOKEN_CACHE_TTL` / `FORWARD_CLIENT_IP`: passthrough tuning (token check cache seconds; send client IP to NetBox for token allowed-IP rules)
 - `LOG_LEVEL`: Logging verbosity (default: `INFO`, options: `DEBUG`, `WARNING`, `ERROR`)
 
 ## Security Considerations
@@ -358,7 +357,7 @@ mcp_tool(
 
 **401 in token passthrough mode**
 → NetBox rejected the client's token (invalid, disabled, expired, or not allowed from this IP)
-→ For tokens with Allowed IPs, see FORWARD_CLIENT_IP in README.md
+→ Tokens with Allowed IPs only work if the range includes the MCP server
 
 **503 in token passthrough mode**
 → The server could not reach NetBox to check the token; check NETBOX_URL and NetBox health

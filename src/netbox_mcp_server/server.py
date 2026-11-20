@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urlsplit
 import httpx
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
-from fastmcp.server.dependencies import get_access_token, get_http_request
+from fastmcp.server.dependencies import get_access_token
 from pydantic import Field, SecretStr
 from starlette.authentication import AuthenticationError
 from starlette.middleware import Middleware
@@ -84,18 +84,6 @@ def parse_cli_args() -> dict[str, Any]:
         ),
     )
     parser.add_argument(
-        "--token-cache-ttl",
-        type=float,
-        help="Seconds to remember an accepted passthrough token, 0 to disable (default: 60)",
-    )
-    parser.add_argument(
-        "--forward-client-ip",
-        action="store_true",
-        default=None,
-        dest="forward_client_ip",
-        help="Send each client's IP to NetBox as X-Forwarded-For (passthrough only)",
-    )
-    parser.add_argument(
         "--mcp-auth-token",
         type=str,
         help=(
@@ -156,10 +144,6 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["mcp_auth_token"] = args.mcp_auth_token
     if args.token_passthrough is not None:
         overlay["token_passthrough"] = args.token_passthrough
-    if args.token_cache_ttl is not None:
-        overlay["token_cache_ttl"] = args.token_cache_ttl
-    if args.forward_client_ip is not None:
-        overlay["forward_client_ip"] = args.forward_client_ip
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
@@ -216,6 +200,9 @@ def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
     return BearerTokenVerifier(token.get_secret_value())
 
 
+# How long NetBox's answer for an accepted passthrough token is remembered
+TOKEN_CACHE_SECONDS = 60.0
+
 # Printable ASCII without spaces; covers v1 (40 chars) and v2 (nbt_<key>.<token>) tokens
 _TOKEN_PATTERN = re.compile(r"[\x21-\x7e]{1,256}")
 
@@ -231,28 +218,6 @@ def _netbox_unavailable_response(conn: HTTPConnection, exc: AuthenticationError)
         status_code=503,
         headers={"Retry-After": "5"},
     )
-
-
-def get_client_ip(enabled: bool) -> str | None:
-    """
-    Return the IP of the client behind the current HTTP request, if enabled.
-
-    uvicorn already resolves X-Forwarded-For from trusted proxies (FORWARDED_ALLOW_IPS)
-    into request.client, so this is the end user's address, not a proxy's.
-
-    Args:
-        enabled: Whether client IP forwarding is turned on
-
-    Returns:
-        The client IP, or None when disabled or unknown
-    """
-    if not enabled:
-        return None
-    try:
-        request = get_http_request()
-    except RuntimeError:
-        return None
-    return request.client.host if request.client else None
 
 
 def passthrough_warnings(settings: Settings) -> list[str]:
@@ -289,25 +254,17 @@ class NetBoxTokenVerifier(TokenVerifier):
     Tool calls then use the same token, so NetBox applies that user's permissions to
     every request.
 
-    Accepted tokens are cached for cache_ttl seconds to avoid an extra NetBox call per
+    Accepted tokens are cached for TOKEN_CACHE_SECONDS to avoid an extra NetBox call per
     MCP request. A token revoked within that window still passes this check, but
     NetBox rejects the tool calls made with it, so no access is gained.
 
     If NetBox cannot be reached, the request gets 503 rather than 401.
     """
 
-    def __init__(
-        self,
-        client: NetBoxRestClient,
-        cache_ttl: float = 60.0,
-        forward_client_ip: bool = False,
-    ) -> None:
+    def __init__(self, client: NetBoxRestClient) -> None:
         super().__init__()
         self._client = client
-        self._cache_ttl = cache_ttl
-        self._forward_client_ip = forward_client_ip
-        # sha256(token, client IP) -> (expires at, access token); hashed keys avoid
-        # holding raw tokens, and the IP keeps allowed-IP checks per address.
+        # sha256(token) -> (expires at, access token); hashed keys avoid holding raw tokens.
         self._cache: dict[bytes, tuple[float, AccessToken]] = {}
 
     def get_middleware(self) -> list:
@@ -331,8 +288,7 @@ class NetBoxTokenVerifier(TokenVerifier):
         if not _TOKEN_PATTERN.fullmatch(token):
             return None
 
-        client_ip = get_client_ip(self._forward_client_ip)
-        key = hashlib.sha256(token.encode() + b"\0" + (client_ip or "").encode()).digest()
+        key = hashlib.sha256(token.encode()).digest()
         now = time.monotonic()
         cached = self._cache.get(key)
         if cached and cached[0] > now:
@@ -343,7 +299,7 @@ class NetBoxTokenVerifier(TokenVerifier):
             # users/config also requires a valid token, but has no username;
             # it covers NetBox < 4.5, which lacks authentication-check.
             user = await asyncio.to_thread(
-                self._client.with_token(token, client_ip).get,
+                self._client.with_token(token).get,
                 "authentication-check",
                 fallback_endpoint="users/config",
             )
@@ -373,10 +329,9 @@ class NetBoxTokenVerifier(TokenVerifier):
             scopes=[],
             claims={"netbox_user": username},
         )
-        if self._cache_ttl > 0:
-            # Drop expired entries so the cache cannot grow without bound
-            self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
-            self._cache[key] = (now + self._cache_ttl, access_token)
+        # Drop expired entries so the cache cannot grow without bound
+        self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
+        self._cache[key] = (now + TOKEN_CACHE_SECONDS, access_token)
         return access_token
 
 
@@ -395,16 +350,14 @@ DEFAULT_SEARCH_TYPES = [
 mcp = FastMCP("NetBox")
 netbox = None
 token_passthrough = False
-forward_client_ip = False
 
 
 def get_netbox_client() -> NetBoxRestClient:
     """
     Return the NetBox client to use for the current tool call.
 
-    In token passthrough mode this is a client using the caller's own NetBox token
-    (and IP, if forwarding is on), so NetBox applies that user's permissions.
-    Otherwise it is the shared client.
+    In token passthrough mode this is a client using the caller's own NetBox token,
+    so NetBox applies that user's permissions. Otherwise it is the shared client.
 
     Raises:
         PermissionError: In passthrough mode, if the request carries no token
@@ -414,7 +367,7 @@ def get_netbox_client() -> NetBoxRestClient:
     access_token = get_access_token()
     if access_token is None:
         raise PermissionError("No NetBox token on this request")
-    return netbox.with_token(access_token.token, get_client_ip(forward_client_ip))
+    return netbox.with_token(access_token.token)
 
 
 def validate_filters(filters: dict) -> None:
@@ -956,7 +909,7 @@ async def _update_tool_descriptions() -> None:
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    global netbox, token_passthrough, forward_client_ip
+    global netbox, token_passthrough
 
     cli_overlay: dict[str, Any] = parse_cli_args()
 
@@ -1018,12 +971,7 @@ def main() -> None:
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
             if settings.token_passthrough:
                 token_passthrough = True
-                forward_client_ip = settings.forward_client_ip
-                mcp.auth = NetBoxTokenVerifier(
-                    netbox,
-                    cache_ttl=settings.token_cache_ttl,
-                    forward_client_ip=settings.forward_client_ip,
-                )
+                mcp.auth = NetBoxTokenVerifier(netbox)
                 logger.info("Token passthrough enabled: each client must send its own NetBox token")
                 for warning in passthrough_warnings(settings):
                     logger.warning(warning)
