@@ -2,16 +2,25 @@ import argparse
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import logging
+import re
 import sys
+import time
 from typing import Annotated, Any
+from urllib.parse import urlparse, urlsplit
 
 import httpx2
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+from fastmcp.server.dependencies import get_access_token
 from pydantic import Field, SecretStr
+from starlette.authentication import AuthenticationError
 from starlette.middleware import Middleware
+from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import HTTPConnection
+from starlette.responses import JSONResponse, Response
 
 from netbox_mcp_server.config import Settings, configure_logging
 from netbox_mcp_server.netbox_client import NetBoxRestClient
@@ -63,6 +72,16 @@ def parse_cli_args() -> dict[str, Any]:
         "--cors-origins",
         action="append",
         help="CORS origins (repeat flag). Use * to allow any origin (default: none)",
+    )
+    parser.add_argument(
+        "--token-passthrough",
+        action="store_true",
+        default=None,
+        dest="token_passthrough",
+        help=(
+            "Use each HTTP client's own NetBox token (sent as 'Authorization: Bearer "
+            "<token>') instead of a shared NETBOX_TOKEN (default: off)"
+        ),
     )
     parser.add_argument(
         "--mcp-auth-token",
@@ -123,6 +142,8 @@ def parse_cli_args() -> dict[str, Any]:
         overlay["cors_origins"] = args.cors_origins
     if args.mcp_auth_token is not None:
         overlay["mcp_auth_token"] = args.mcp_auth_token
+    if args.token_passthrough is not None:
+        overlay["token_passthrough"] = args.token_passthrough
     if args.verify_ssl is not None:
         overlay["verify_ssl"] = args.verify_ssl
     if args.enable_plugin_discovery is not None:
@@ -179,6 +200,141 @@ def build_http_auth(token: SecretStr | None) -> TokenVerifier | None:
     return BearerTokenVerifier(token.get_secret_value())
 
 
+# How long NetBox's answer for an accepted passthrough token is remembered
+TOKEN_CACHE_SECONDS = 60.0
+
+# Printable ASCII without spaces; covers v1 (40 chars) and v2 (nbt_<key>.<token>) tokens
+_TOKEN_PATTERN = re.compile(r"[\x21-\x7e]{1,256}")
+
+
+class NetBoxUnavailableError(AuthenticationError):
+    """NetBox could not be reached to check a passthrough token."""
+
+
+def _netbox_unavailable_response(conn: HTTPConnection, exc: AuthenticationError) -> Response:
+    """Answer 503 instead of 401 so clients do not discard a token that may be fine."""
+    return JSONResponse(
+        {"error": "temporarily_unavailable", "error_description": str(exc)},
+        status_code=503,
+        headers={"Retry-After": "5"},
+    )
+
+
+def passthrough_warnings(settings: Settings) -> list[str]:
+    """
+    Return warnings for passthrough setups that would expose users' NetBox tokens.
+
+    Args:
+        settings: The effective server settings
+
+    Returns:
+        Warning messages, empty when the setup looks safe
+    """
+    warnings = []
+    url = urlparse(str(settings.netbox_url))
+    host = url.hostname or ""
+    try:
+        loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = False
+    if url.scheme == "http" and not loopback:
+        warnings.append("NETBOX_URL uses plain HTTP: every user's NetBox token is sent unencrypted")
+    if not settings.verify_ssl:
+        warnings.append(
+            "VERIFY_SSL is off: anyone able to intercept traffic to NetBox can read users' tokens"
+        )
+    return warnings
+
+
+class NetBoxTokenVerifier(TokenVerifier):
+    """Accept a bearer only if NetBox accepts it as an API token.
+
+    Used in token passthrough mode. The bearer is the caller's own NetBox token,
+    checked against NetBox (authentication-check, or users/config on NetBox < 4.5).
+    Tool calls then use the same token, so NetBox applies that user's permissions to
+    every request.
+
+    Accepted tokens are cached for TOKEN_CACHE_SECONDS to avoid an extra NetBox call per
+    MCP request. A token revoked within that window still passes this check, but
+    NetBox rejects the tool calls made with it, so no access is gained.
+
+    If NetBox cannot be reached, the request gets 503 rather than 401.
+    """
+
+    def __init__(self, client: NetBoxRestClient) -> None:
+        super().__init__()
+        self._client = client
+        # sha256(token) -> (expires at, access token); hashed keys avoid holding raw tokens.
+        self._cache: dict[bytes, tuple[float, AccessToken]] = {}
+
+    def get_middleware(self) -> list:
+        """Use FastMCP's auth middleware, but answer 503 when NetBox is unreachable."""
+        return [
+            Middleware(m.cls, *m.args, **m.kwargs, on_error=_netbox_unavailable_response)
+            if m.cls is AuthenticationMiddleware
+            else m
+            for m in super().get_middleware()
+        ]
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        """
+        Return an AccessToken naming the NetBox user, or None to reject.
+
+        Raises:
+            NetBoxUnavailableError: If NetBox is unreachable or failing
+        """
+        # The bearer is attacker-controlled; only send NetBox something that could
+        # be a token, so garbage costs no NetBox call and is never put in a header.
+        if not _TOKEN_PATTERN.fullmatch(token):
+            return None
+
+        key = hashlib.sha256(token.encode()).digest()
+        now = time.monotonic()
+        cached = self._cache.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+
+        logger = logging.getLogger(__name__)
+        try:
+            # users/config also requires a valid token, but has no username;
+            # it covers NetBox < 4.5, which lacks authentication-check.
+            user = await asyncio.to_thread(
+                self._client.with_token(token).get,
+                "authentication-check",
+                fallback_endpoint="users/config",
+            )
+        except httpx2.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429 or status >= 500:
+                logger.warning(f"NetBox token check failed with HTTP {status}")
+                raise NetBoxUnavailableError(f"NetBox returned HTTP {status}") from e
+            if status not in (401, 403):
+                logger.warning(f"NetBox token check failed with HTTP {status}")
+            return None
+        except httpx2.HTTPError as e:
+            logger.warning(f"NetBox token check failed: {e!r}")
+            raise NetBoxUnavailableError("NetBox could not be reached") from e
+
+        username = user.get("username", "unknown")
+        # MCP binds each session to (client_id, subject), so the subject must be
+        # unique per user. users/config has no user ID; fall back to the token hash.
+        if "id" in user:
+            subject = f"netbox-user:{user['id']}"
+        else:
+            subject = f"netbox-token:{hashlib.sha256(token.encode()).hexdigest()}"
+        access_token = AccessToken(
+            token=token,
+            client_id=username,
+            subject=subject,
+            scopes=[],
+            claims={"netbox_user": username},
+        )
+        # Drop expired entries so the cache cannot grow without bound
+        self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
+        self._cache[key] = (now + TOKEN_CACHE_SECONDS, access_token)
+        return access_token
+
+
 # Default object types for global search
 DEFAULT_SEARCH_TYPES = [
     "dcim.device",  # Most common search target
@@ -193,6 +349,25 @@ DEFAULT_SEARCH_TYPES = [
 
 mcp = FastMCP("NetBox")
 netbox = None
+token_passthrough = False
+
+
+def get_netbox_client() -> NetBoxRestClient:
+    """
+    Return the NetBox client to use for the current tool call.
+
+    In token passthrough mode this is a client using the caller's own NetBox token,
+    so NetBox applies that user's permissions. Otherwise it is the shared client.
+
+    Raises:
+        PermissionError: In passthrough mode, if the request carries no token
+    """
+    if not token_passthrough:
+        return netbox
+    access_token = get_access_token()
+    if access_token is None:
+        raise PermissionError("No NetBox token on this request")
+    return netbox.with_token(access_token.token)
 
 
 def validate_filters(filters: dict) -> None:
@@ -266,6 +441,7 @@ def validate_filters(filters: dict) -> None:
 
 
 @mcp.tool(
+    annotations={"readOnlyHint": True},
     description="""
     Get objects from NetBox based on their type and filters
 
@@ -287,7 +463,7 @@ def validate_filters(filters: dict) -> None:
 
                 Two-step pattern for cross-relationship queries:
                   sites = netbox_get_objects('dcim.site', {'name': 'NYC'})
-                  netbox_get_objects('dcim.device', {'site_id': sites[0]['id']})
+                  netbox_get_objects('dcim.device', {'site_id': sites['results'][0]['id']})
 
         fields: Optional list of specific fields to return
                 **IMPORTANT: ALWAYS USE THIS PARAMETER TO MINIMIZE TOKEN USAGE**
@@ -344,7 +520,7 @@ def validate_filters(filters: dict) -> None:
     + """
 
     See NetBox API documentation for filtering options for each object type.
-    """
+    """,
 )
 def netbox_get_objects(
     object_type: str,
@@ -387,10 +563,10 @@ def netbox_get_objects(
             params["ordering"] = ordering
 
     # Make API call
-    return netbox.get(endpoint, params=params, fallback_endpoint=fallback)
+    return get_netbox_client().get(endpoint, params=params, fallback_endpoint=fallback)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": True})
 def netbox_get_object_by_id(
     object_type: str,
     object_id: int,
@@ -440,10 +616,10 @@ def netbox_get_object_by_id(
     if brief:
         params["brief"] = "1"
 
-    return netbox.get(full_endpoint, params=params, fallback_endpoint=full_fallback)
+    return get_netbox_client().get(full_endpoint, params=params, fallback_endpoint=full_fallback)
 
 
-@mcp.tool
+@mcp.tool(annotations={"readOnlyHint": True})
 def netbox_get_changelogs(filters: dict):
     """
     Get object change records (changelogs) from NetBox based on filters.
@@ -499,13 +675,15 @@ def netbox_get_changelogs(filters: dict):
     - postchange_data: The object's data after the change (null for deletions)
     - time: The timestamp when the change was made
     """
+    validate_filters(filters)
     endpoint = "core/object-changes"
 
     # Make API call
-    return netbox.get(endpoint, params=filters)
+    return get_netbox_client().get(endpoint, params=filters)
 
 
 @mcp.tool(
+    annotations={"readOnlyHint": True},
     description="""
     Perform global search across NetBox infrastructure.
 
@@ -553,7 +731,7 @@ def netbox_get_changelogs(filters: dict):
             object_types=['dcim.site', 'dcim.location'],
             fields=['id', 'name', 'status']
         )
-    """
+    """,
 )
 def netbox_search_objects(
     query: str,
@@ -573,12 +751,13 @@ def netbox_search_objects(
             raise ValueError(f"Invalid object_type '{obj_type}'. Must be one of:\n{valid_types}")
 
     results = {obj_type: [] for obj_type in search_types}
+    client = get_netbox_client()
 
     # Build results dictionary (error-resilient)
     for obj_type in search_types:
         try:
             endpoint, fallback = _get_endpoint_info(obj_type)
-            response = netbox.get(
+            response = client.get(
                 endpoint,
                 params={
                     "q": query,
@@ -635,6 +814,7 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
         # Paginate through all object types
         offset = 0
         limit = 100
+        api_path = urlsplit(client.api_url).path.strip("/")
         while True:
             response = client.get(
                 "core/object-types",
@@ -667,6 +847,8 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 # Convert REST URL to endpoint path:
                 # "/api/plugins/netbox-dns/zones/" -> "plugins/netbox-dns/zones"
                 endpoint = rest_url.strip("/")
+                if api_path and endpoint.startswith(f"{api_path}/"):
+                    endpoint = endpoint[len(api_path) + 1 :]
                 if endpoint.startswith("api/"):
                     endpoint = endpoint[4:]
 
@@ -679,9 +861,9 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 }
 
             # Check if there are more pages
-            if not response.get("next"):
+            if not results or not response.get("next"):
                 break
-            offset += limit
+            offset += len(results)
 
     except (httpx2.HTTPError, ValueError, KeyError) as e:
         logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
@@ -727,7 +909,7 @@ async def _update_tool_descriptions() -> None:
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    global netbox
+    global netbox, token_passthrough
 
     cli_overlay: dict[str, Any] = parse_cli_args()
 
@@ -767,7 +949,7 @@ def main() -> None:
     try:
         netbox = NetBoxRestClient(
             url=str(settings.netbox_url),
-            token=settings.netbox_token.get_secret_value(),
+            token=settings.netbox_token.get_secret_value() if settings.netbox_token else None,
             verify_ssl=settings.verify_ssl,
         )
         logger.debug("NetBox client initialized successfully")
@@ -787,8 +969,13 @@ def main() -> None:
             mcp.run(transport="stdio")
         elif settings.transport == "http":
             logger.info(f"Starting HTTP transport on {settings.host}:{settings.port}")
-            auth = build_http_auth(settings.mcp_auth_token)
-            if auth is not None:
+            if settings.token_passthrough:
+                token_passthrough = True
+                mcp.auth = NetBoxTokenVerifier(netbox)
+                logger.info("Token passthrough enabled: each client must send its own NetBox token")
+                for warning in passthrough_warnings(settings):
+                    logger.warning(warning)
+            elif (auth := build_http_auth(settings.mcp_auth_token)) is not None:
                 # FastMCP reads mcp.auth when it builds the HTTP app at run time,
                 # so this assignment wires it (the 401 tests verify enforcement).
                 mcp.auth = auth
@@ -803,7 +990,7 @@ def main() -> None:
                 Middleware(
                     CORSMiddleware,
                     allow_origins=settings.cors_origins,
-                    allow_methods=["GET", "POST", "OPTIONS"],
+                    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
                     allow_headers=[
                         "Authorization",
                         "mcp-protocol-version",

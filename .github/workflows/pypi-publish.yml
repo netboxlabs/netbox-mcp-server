@@ -1,0 +1,94 @@
+name: Publish to PyPI
+
+# Publishes the sdist and wheel to PyPI for a release tag. Dispatched by
+# `release-finalize.yml` against the new `v*.*.*` tag; to republish by hand,
+# run this workflow with the tag selected as the ref. Uses PyPI Trusted
+# Publishers (OIDC): no API token is stored in the repo; the
+# `id-token: write` permission lets the publish job mint a short-lived
+# credential that PyPI accepts.
+#
+# Setup requirements (one-time):
+#   1. Configure a trusted publisher (or pending publisher, if the name
+#      has not been claimed yet) on PyPI for project `netbox-mcp-server`
+#      pointing at:
+#        - owner:       netboxlabs
+#        - repository:  netbox-mcp-server
+#        - workflow:    pypi-publish.yml
+#        - environment: pypi
+#   2. Create the `pypi` GitHub Environment in repo Settings, with a
+#      deployment branch/tag rule restricting it to tags matching `v*`.
+#
+# See https://docs.pypi.org/trusted-publishers/ for background.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-publish-${{ github.ref }}
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+
+      # PyPI uploads are permanent, so refuse to build anything whose version
+      # does not match the tag being released.
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "${TAG}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${TAG} does not match pyproject.toml version ${VERSION}"
+            exit 1
+          fi
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Check distributions
+        run: uvx twine==7.0.0 check --strict dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    # Never publish from a branch (e.g. a manual dispatch on main).
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/netbox-mcp-server/
+    permissions:
+      contents: read
+      id-token: write # Trusted Publisher OIDC exchange and PEP 740 attestations
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
