@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write # dispatch docker-publish.yml
+      actions: write # dispatch docker-publish.yml and pypi-publish.yml
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,3 +80,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
         run: gh workflow run docker-publish.yml --ref "v${VERSION}"
+
+      - name: Publish to PyPI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh workflow run pypi-publish.yml --ref "v${VERSION}"

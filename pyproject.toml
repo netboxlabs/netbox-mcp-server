@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,6 +7,10 @@ name = "netbox-mcp-server"
 version = "1.2.3"
 description = "A read-only MCP server for NetBox"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "NetBox Labs" }]
+keywords = ["netbox", "mcp", "model-context-protocol"]
 requires-python = ">=3.11,<3.15"
 dependencies = [
     "httpx>=0.28.1",
@@ -15,8 +19,18 @@ dependencies = [
     "pydantic-settings>=2.15.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/netboxlabs/netbox-mcp-server"
+Issues = "https://github.com/netboxlabs/netbox-mcp-server/issues"
+Changelog = "https://github.com/netboxlabs/netbox-mcp-server/blob/main/CHANGELOG.md"
+
 [project.scripts]
 netbox-mcp-server = "netbox_mcp_server.server:main"
+
+# Keep the sdist to what a consumer needs; by default hatchling ships every
+# non-ignored file in the tree (CI config, agent config, local scratch dirs).
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependency-groups]
 dev = [
