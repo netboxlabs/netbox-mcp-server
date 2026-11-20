@@ -10,7 +10,7 @@ import time
 from typing import Annotated, Any
 from urllib.parse import urlparse, urlsplit
 
-import httpx
+import httpx2
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
 from fastmcp.server.dependencies import get_access_token
@@ -303,7 +303,7 @@ class NetBoxTokenVerifier(TokenVerifier):
                 "authentication-check",
                 fallback_endpoint="users/config",
             )
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             status = e.response.status_code
             if status == 429 or status >= 500:
                 logger.warning(f"NetBox token check failed with HTTP {status}")
@@ -311,7 +311,7 @@ class NetBoxTokenVerifier(TokenVerifier):
             if status not in (401, 403):
                 logger.warning(f"NetBox token check failed with HTTP {status}")
             return None
-        except httpx.HTTPError as e:
+        except httpx2.HTTPError as e:
             logger.warning(f"NetBox token check failed: {e!r}")
             raise NetBoxUnavailableError("NetBox could not be reached") from e
 
@@ -865,7 +865,7 @@ def discover_plugin_types(client: NetBoxRestClient) -> dict[str, dict[str, str]]
                 break
             offset += len(results)
 
-    except (httpx.HTTPError, ValueError, KeyError) as e:
+    except (httpx2.HTTPError, ValueError, KeyError) as e:
         logger.warning(f"Plugin discovery failed, continuing with core types only: {e}")
         return {}
 

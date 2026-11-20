@@ -3,7 +3,7 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 
-import httpx
+import httpx2
 import pytest
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken
@@ -121,10 +121,10 @@ def _verifier_with(get: MagicMock) -> NetBoxTokenVerifier:
     return NetBoxTokenVerifier(client)
 
 
-def _http_error(status: int) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", f"{URL}api/authentication-check/")
-    return httpx.HTTPStatusError(
-        "error", request=request, response=httpx.Response(status, request=request)
+def _http_error(status: int) -> httpx2.HTTPStatusError:
+    request = httpx2.Request("GET", f"{URL}api/authentication-check/")
+    return httpx2.HTTPStatusError(
+        "error", request=request, response=httpx2.Response(status, request=request)
     )
 
 
@@ -167,7 +167,7 @@ def test_verifier_reports_netbox_failure_as_unavailable(status):
 
 
 @pytest.mark.parametrize(
-    "error", [httpx.ConnectError("down"), httpx.ReadTimeout("slow")], ids=["connect", "timeout"]
+    "error", [httpx2.ConnectError("down"), httpx2.ReadTimeout("slow")], ids=["connect", "timeout"]
 )
 def test_verifier_reports_unreachable_netbox_as_unavailable(error):
     verifier = _verifier_with(MagicMock(side_effect=error))
@@ -256,7 +256,7 @@ _HEADERS = {
 
 
 def test_unreachable_netbox_gives_503_not_401():
-    verifier = _verifier_with(MagicMock(side_effect=httpx.ConnectError("down")))
+    verifier = _verifier_with(MagicMock(side_effect=httpx2.ConnectError("down")))
     with _app_with(verifier) as client:
         response = client.post("/mcp/", json=_INITIALIZE, headers=_HEADERS)
     assert response.status_code == 503

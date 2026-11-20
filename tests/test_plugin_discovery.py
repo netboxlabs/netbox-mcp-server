@@ -7,7 +7,7 @@ plugin models and returns them in the same format as NETBOX_OBJECT_TYPES.
 from unittest.mock import MagicMock
 from urllib.parse import urlsplit
 
-import httpx
+import httpx2
 import pytest
 
 from netbox_mcp_server.netbox_client import NetBoxRestClient
@@ -245,18 +245,18 @@ def test_discovered_endpoint_is_requested_once_under_api_base(
     def handler(request):
         requested_paths.append(request.url.path)
         if request.url.path.endswith("/object-types/"):
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "results": [_plugin_row("netbox_dns", "zone", rest_url)],
                     "next": None,
                 },
             )
-        return httpx.Response(200, json={})
+        return httpx2.Response(200, json={})
 
     client = NetBoxRestClient(base_url, "test-token")
     client.session.close()
-    client.session = httpx.Client(transport=httpx.MockTransport(handler))
+    client.session = httpx2.Client(transport=httpx2.MockTransport(handler))
     try:
         plugin_types = discover_plugin_types(client)
         assert plugin_types["netbox_dns.zone"]["endpoint"] == expected_endpoint
@@ -369,7 +369,9 @@ def test_stops_when_next_missing(client):
 
 def test_returns_empty_dict_on_http_error(client):
     """HTTP errors are swallowed and empty dict returned."""
-    client.get.side_effect = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
+    client.get.side_effect = httpx2.HTTPStatusError(
+        "500", request=MagicMock(), response=MagicMock()
+    )
 
     result = discover_plugin_types(client)
 
@@ -378,7 +380,7 @@ def test_returns_empty_dict_on_http_error(client):
 
 def test_returns_empty_dict_on_network_error(client):
     """Transport errors (timeouts, DNS, connection refused) are swallowed."""
-    client.get.side_effect = httpx.ConnectError("connection refused")
+    client.get.side_effect = httpx2.ConnectError("connection refused")
 
     result = discover_plugin_types(client)
 

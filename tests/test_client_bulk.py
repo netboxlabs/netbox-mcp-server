@@ -3,30 +3,30 @@
 import json
 from collections.abc import Iterator
 
-import httpx
+import httpx2
 import pytest
 
 from netbox_mcp_server.netbox_client import NetBoxRestClient
 
 
 @pytest.fixture
-def bulk_client() -> Iterator[tuple[NetBoxRestClient, list[httpx.Request]]]:
+def bulk_client() -> Iterator[tuple[NetBoxRestClient, list[httpx2.Request]]]:
     """Provide the documented list endpoint without a live NetBox server."""
-    requests: list[httpx.Request] = []
+    requests: list[httpx2.Request] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
         if request.url.path != "/api/dcim/sites/":
-            return httpx.Response(404)
+            return httpx2.Response(404)
         if request.method == "DELETE":
-            return httpx.Response(204)
+            return httpx2.Response(204)
         status = 201 if request.method == "POST" else 200
-        return httpx.Response(status, json=json.loads(request.content))
+        return httpx2.Response(status, json=json.loads(request.content))
 
     client = NetBoxRestClient("https://netbox.example", "test-token")
     headers = client.session.headers
     client.session.close()
-    client.session = httpx.Client(transport=httpx.MockTransport(handler), headers=headers)
+    client.session = httpx2.Client(transport=httpx2.MockTransport(handler), headers=headers)
     try:
         yield client, requests
     finally:
@@ -42,7 +42,7 @@ def bulk_client() -> Iterator[tuple[NetBoxRestClient, list[httpx.Request]]]:
     ],
 )
 def test_bulk_requests_use_list_endpoint(
-    bulk_client: tuple[NetBoxRestClient, list[httpx.Request]],
+    bulk_client: tuple[NetBoxRestClient, list[httpx2.Request]],
     operation: str,
     method: str,
     values: list[dict[str, object]] | list[int],
@@ -63,14 +63,14 @@ def test_bulk_requests_use_list_endpoint(
 
 @pytest.mark.parametrize("operation", ["bulk_create", "bulk_update", "bulk_delete"])
 def test_bulk_requests_propagate_api_errors(
-    bulk_client: tuple[NetBoxRestClient, list[httpx.Request]], operation: str
+    bulk_client: tuple[NetBoxRestClient, list[httpx2.Request]], operation: str
 ) -> None:
     """Keep the client's existing HTTP error behavior for bulk requests."""
     client, _ = bulk_client
     client.session.close()
-    client.session = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(403)))
+    client.session = httpx2.Client(transport=httpx2.MockTransport(lambda _: httpx2.Response(403)))
 
-    with pytest.raises(httpx.HTTPStatusError) as error:
+    with pytest.raises(httpx2.HTTPStatusError) as error:
         getattr(client, operation)("dcim/sites", [])
 
     assert error.value.response.status_code == 403

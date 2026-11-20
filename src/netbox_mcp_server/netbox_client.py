@@ -8,7 +8,7 @@ This module provides a base class for NetBox client implementations and a REST A
 import abc
 from typing import Any
 
-import httpx
+import httpx2
 
 
 class NetBoxClientBase(abc.ABC):
@@ -166,7 +166,7 @@ class NetBoxRestClient(NetBoxClientBase):
         url: str,
         token: str | None,
         verify_ssl: bool = True,
-        session: httpx.Client | None = None,
+        session: httpx2.Client | None = None,
     ):
         """
         Initialize the REST API client.
@@ -181,7 +181,7 @@ class NetBoxRestClient(NetBoxClientBase):
         self.api_url = f"{self.base_url}/api"
         self.token = token
         self.verify_ssl = verify_ssl
-        self.session = session or httpx.Client(verify=self.verify_ssl)
+        self.session = session or httpx2.Client(verify=self.verify_ssl)
         self.session.headers.update(
             {
                 "Content-Type": "application/json",
@@ -207,7 +207,7 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         return NetBoxRestClient(self.base_url, token, self.verify_ssl, session=self.session)
 
-    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    def _request(self, method: str, url: str, **kwargs: Any) -> httpx2.Response:
         """Send a request with this client's per-request headers."""
         return self.session.request(method, url, headers=self.request_headers, **kwargs)
 
@@ -244,7 +244,7 @@ class NetBoxRestClient(NetBoxClientBase):
                 - results: Array of objects for this page
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self._request("GET", url, params=params)
@@ -270,7 +270,7 @@ class NetBoxRestClient(NetBoxClientBase):
             The created object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
         response = self._request("POST", url, json=data)
@@ -290,7 +290,7 @@ class NetBoxRestClient(NetBoxClientBase):
             The updated object as a dict
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self._request("PATCH", url, json=data)
@@ -309,7 +309,7 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint, id)
         response = self._request("DELETE", url)
@@ -328,7 +328,7 @@ class NetBoxRestClient(NetBoxClientBase):
             List of created objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
         response = self._request("POST", url, json=data)
@@ -347,7 +347,7 @@ class NetBoxRestClient(NetBoxClientBase):
             List of updated objects as dicts
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
         response = self._request("PATCH", url, json=data)
@@ -366,7 +366,7 @@ class NetBoxRestClient(NetBoxClientBase):
             True if deletion was successful, False otherwise
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            httpx2.HTTPStatusError: If the request fails
         """
         url = self._build_url(endpoint)
         data = [{"id": id} for id in ids]

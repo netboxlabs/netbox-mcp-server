@@ -12,4 +12,4 @@ def test_all_tools_declare_read_only_hint():
     assert tools
     for tool in tools:
         assert tool.annotations is not None, tool.name
-        assert tool.annotations.readOnlyHint is True, tool.name
+        assert tool.annotations.read_only_hint is True, tool.name
