@@ -170,11 +170,12 @@ The server supports multiple configuration sources with the following precedence
 | Setting | Type | Default | Required | Description |
 |---------|------|---------|----------|-------------|
 | `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
-| `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
+| `NETBOX_TOKEN` | String | - | Unless `TOKEN_PASSTHROUGH` | API token for authentication. Must not be set with `TOKEN_PASSTHROUGH`. |
 | `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. |
+| `TOKEN_PASSTHROUGH` | Boolean | `false` | No | HTTP only. Each client sends its own NetBox token and NetBox applies that user's permissions. See [Per-User NetBox Tokens](#per-user-netbox-tokens-token-passthrough). |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
 | `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
@@ -223,6 +224,58 @@ uv run netbox-mcp-server \
   --port 8000
 ```
 
+#### Per-User NetBox Tokens (Token Passthrough)
+
+By default every client shares the permissions of `NETBOX_TOKEN`. With
+`TOKEN_PASSTHROUGH=true`, each client sends its own NetBox API token instead, and the
+server makes every NetBox call with that token. NetBox then applies that user's
+object permissions, so two people using the same server only see what they could see
+in NetBox itself.
+
+```bash
+export NETBOX_URL=https://netbox.example.com/
+export TRANSPORT=http
+export TOKEN_PASSTHROUGH=true
+# NETBOX_TOKEN must not be set
+
+uv run netbox-mcp-server
+```
+
+Each user creates an API token in NetBox (read-only is enough) and adds it to their
+client. Send it as `Bearer` even for v1 tokens; the server uses the right scheme
+towards NetBox.
+
+```bash
+claude mcp add --transport http netbox https://mcp.example.com/mcp \
+  --header "Authorization: Bearer <your-netbox-token>"
+```
+
+How it works:
+
+- The server checks each bearer against NetBox (`/api/authentication-check/`, or
+  `/api/users/config/` on NetBox < 4.5). A token NetBox rejects (invalid, disabled,
+  expired, or not allowed from this IP) gets `401`. If NetBox cannot be reached or
+  fails, the client gets `503` with `Retry-After`, not a misleading `401`.
+- Accepted tokens are remembered for 60 seconds. A token revoked in that window still
+  gets no data, because NetBox rejects the tool calls made with it.
+- An MCP session belongs to the user who opened it; another user's token cannot use it.
+- Tokens are kept in memory only (hashed as cache keys) and are never logged.
+- Clients send their NetBox token to this server, so always put it behind TLS. The
+  server also forwards those tokens to NetBox, and logs a warning at startup if
+  `NETBOX_URL` is plain HTTP (other than localhost) or `VERIFY_SSL` is off.
+
+Limitations:
+
+- `MCP_AUTH_TOKEN` and `ENABLE_PLUGIN_DISCOVERY` cannot be combined with this mode,
+  since both rely on a shared token. Plugin object types are not available.
+- Clients must be able to send a static `Authorization` header. MCP clients that
+  only support OAuth sign-in cannot use this mode.
+- Each request with an unknown token costs one NetBox API call, so rate-limit this
+  server at your proxy if it is exposed widely.
+- NetBox checks a token's **Allowed IPs** against the address that connects to it,
+  which is this server, not the user. Tokens with Allowed IPs only work if the allowed
+  range includes this server.
+
 ### Example .env File
 
 Create a `.env` file in the project root:
@@ -240,6 +293,8 @@ TRANSPORT=stdio
 # PORT=8000
 # Bearer token required on the HTTP endpoint. When unset, the endpoint is unauthenticated.
 # MCP_AUTH_TOKEN=a-strong-random-token
+# Use each client's own NetBox token instead of NETBOX_TOKEN (HTTP only)
+# TOKEN_PASSTHROUGH=true
 
 # Security (optional, defaults to true)
 VERIFY_SSL=true
@@ -312,7 +367,7 @@ docker run --rm \
 
 > **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
 
-> **⚠️ Security:** The HTTP transport has **no authentication** unless you set `MCP_AUTH_TOKEN`. Binding to `HOST=0.0.0.0` exposes read access to all NetBox data your token can see to anyone who can reach the port. Set a strong `MCP_AUTH_TOKEN` (clients then send `Authorization: Bearer <token>`) and terminate TLS at a reverse proxy or gateway before exposing the server to a network. A bearer token sent over plain HTTP can be intercepted, so TLS is required for real deployments.
+> **⚠️ Security:** The HTTP transport has **no authentication** unless you set `MCP_AUTH_TOKEN` or use [token passthrough](#per-user-netbox-tokens-token-passthrough). Binding to `HOST=0.0.0.0` exposes read access to all NetBox data your token can see to anyone who can reach the port. Set a strong `MCP_AUTH_TOKEN` (clients then send `Authorization: Bearer <token>`) and terminate TLS at a reverse proxy or gateway before exposing the server to a network. A bearer token sent over plain HTTP can be intercepted, so TLS is required for real deployments.
 
 **Connecting to NetBox on your host machine:**
 
@@ -347,6 +402,20 @@ docker run --rm \
   -p 8000:8000 \
   netbox-mcp-server:latest
 ```
+
+**With per-user NetBox tokens (token passthrough):**
+
+```bash
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e TOKEN_PASSTHROUGH=true \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+Leave out `NETBOX_TOKEN` and `MCP_AUTH_TOKEN`; each client sends its own NetBox token.
 
 The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your preferred method.
 
