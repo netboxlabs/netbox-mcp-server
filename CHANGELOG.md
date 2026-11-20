@@ -2,6 +2,62 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-11-20)
+
+### Bug Fixes
+
+- Bind passthrough sessions to the NetBox user and reject malformed tokens
+  ([#198](https://github.com/netboxlabs/netbox-mcp-server/pull/198),
+  [`f7807d2`](https://github.com/netboxlabs/netbox-mcp-server/commit/f7807d2ff168eb9179d4a0f42c0976f0005a03f3))
+
+### Chores
+
+- **deps**: Update actions/checkout action to v7
+  ([#171](https://github.com/netboxlabs/netbox-mcp-server/pull/171),
+  [`780ef0a`](https://github.com/netboxlabs/netbox-mcp-server/commit/780ef0a5d8fdc6283534e9d85619398ceb31f2c4))
+
+- **deps**: Update astral-sh/setup-uv action to v10
+  ([#178](https://github.com/netboxlabs/netbox-mcp-server/pull/178),
+  [`c258260`](https://github.com/netboxlabs/netbox-mcp-server/commit/c2582604a95e38664ac95518f3b53d00fa7b29c1))
+
+- **deps**: Update non-major github actions
+  ([#172](https://github.com/netboxlabs/netbox-mcp-server/pull/172),
+  [`5cba404`](https://github.com/netboxlabs/netbox-mcp-server/commit/5cba404608c40142b6a65310810024391ab5f6df))
+
+### Continuous Integration
+
+- Add PyPI publish workflow with Trusted Publisher OIDC
+  ([#148](https://github.com/netboxlabs/netbox-mcp-server/pull/148),
+  [`79f8044`](https://github.com/netboxlabs/netbox-mcp-server/commit/79f804400f4e79900f0addc6e03335c03e5589dd))
+
+- Dispatch PyPI publish from release-finalize and add package metadata
+  ([#148](https://github.com/netboxlabs/netbox-mcp-server/pull/148),
+  [`79f8044`](https://github.com/netboxlabs/netbox-mcp-server/commit/79f804400f4e79900f0addc6e03335c03e5589dd))
+
+- Harden PyPI publish and document installing from PyPI
+  ([#148](https://github.com/netboxlabs/netbox-mcp-server/pull/148),
+  [`79f8044`](https://github.com/netboxlabs/netbox-mcp-server/commit/79f804400f4e79900f0addc6e03335c03e5589dd))
+
+### Features
+
+- Add per-user NetBox token passthrough for the HTTP transport
+  ([#198](https://github.com/netboxlabs/netbox-mcp-server/pull/198),
+  [`f7807d2`](https://github.com/netboxlabs/netbox-mcp-server/commit/f7807d2ff168eb9179d4a0f42c0976f0005a03f3))
+
+- Per-user NetBox tokens for the HTTP transport (token passthrough)
+  ([#198](https://github.com/netboxlabs/netbox-mcp-server/pull/198),
+  [`f7807d2`](https://github.com/netboxlabs/netbox-mcp-server/commit/f7807d2ff168eb9179d4a0f42c0976f0005a03f3))
+
+- Publish to PyPI ([#148](https://github.com/netboxlabs/netbox-mcp-server/pull/148),
+  [`79f8044`](https://github.com/netboxlabs/netbox-mcp-server/commit/79f804400f4e79900f0addc6e03335c03e5589dd))
+
+### Refactoring
+
+- Drop client IP forwarding, cache TTL setting and testbed
+  ([#198](https://github.com/netboxlabs/netbox-mcp-server/pull/198),
+  [`f7807d2`](https://github.com/netboxlabs/netbox-mcp-server/commit/f7807d2ff168eb9179d4a0f42c0976f0005a03f3))
+
+
 ## v1.2.3 (2026-11-18)
 
 ### Bug Fixes
