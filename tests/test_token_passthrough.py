@@ -147,6 +147,9 @@ def test_verifier_gives_each_token_its_own_subject_on_old_netbox():
     verifier = _verifier_with(MagicMock(return_value={"tables": {}}))
     alice = asyncio.run(verifier.verify_token("0123456789abcdef"))
     bob = asyncio.run(verifier.verify_token("fedcba9876543210"))
+    assert alice is not None
+    assert bob is not None
+    assert alice.subject is not None
     assert alice.client_id == bob.client_id == "unknown"
     assert alice.subject.startswith("netbox-token:")
     assert alice.subject != bob.subject
