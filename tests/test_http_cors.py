@@ -52,7 +52,8 @@ def http_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         with TestClient(apps[0]) as client:
             yield client
     finally:
-        server.netbox.session.close()
+        if server.netbox is not None:
+            server.netbox.session.close()
 
 
 @pytest.mark.parametrize("method", ["GET", "POST", "DELETE"])

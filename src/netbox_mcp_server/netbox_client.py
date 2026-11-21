@@ -26,7 +26,7 @@ class NetBoxClientBase(abc.ABC):
         id: int | None = None,
         params: dict[str, Any] | None = None,
         fallback_endpoint: str | None = None,
-    ) -> dict[str, Any] | list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
         Retrieve one or more objects from NetBox.
 
@@ -224,7 +224,7 @@ class NetBoxRestClient(NetBoxClientBase):
         id: int | None = None,
         params: dict[str, Any] | None = None,
         fallback_endpoint: str | None = None,
-    ) -> dict[str, Any] | list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
         Retrieve one or more objects from NetBox via the REST API.
 

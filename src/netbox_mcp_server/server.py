@@ -348,7 +348,7 @@ DEFAULT_SEARCH_TYPES = [
 ]
 
 mcp = FastMCP("NetBox")
-netbox = None
+netbox: NetBoxRestClient | None = None
 token_passthrough = False
 
 
@@ -361,7 +361,10 @@ def get_netbox_client() -> NetBoxRestClient:
 
     Raises:
         PermissionError: In passthrough mode, if the request carries no token
+        RuntimeError: If called before main() has created the client
     """
+    if netbox is None:
+        raise RuntimeError("NetBox client is not initialized")
     if not token_passthrough:
         return netbox
     access_token = get_access_token()
@@ -889,7 +892,7 @@ async def _update_tool_descriptions() -> None:
     """
     type_list = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
     tool = await mcp.get_tool("netbox_get_objects")
-    if tool:
+    if tool and tool.description:
         # Replace the type list portion of the description
         desc = tool.description
         marker = "Valid object_type values:"
