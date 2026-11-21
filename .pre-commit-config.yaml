@@ -1,17 +1,65 @@
+fail_fast: false
+minimum_prek_version: "0.5.0"
+default_install_hook_types: [ pre-commit ]
+exclude: |
+  (?x)^(
+    CHANGELOG\.md
+  )$
+
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+  - repo: meta
     hooks:
-      - id: ruff-check
-        args: [--fix]
-      - id: ruff-format
+      - id: identity
+        name: Print checked files
+        description: Print input to the static check hooks for troubleshooting
+        stages: [ manual ]
+      - id: check-hooks-apply
+        name: Check if all hooks apply to the repository
+
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [ --maxkb=100 ]
 
   - repo: local
     hooks:
+      - id: local-ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude --fix --exit-non-zero-on-fix
+        require_serial: true
+        language: system
+        types: [ python ]
+
+      - id: local-ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude --exit-non-zero-on-format
+        require_serial: true
+        language: system
+        types: [ python ]
+
+      - id: local-ty-check
+        name: ty check
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: local-typos
+        name: typos
+        entry: uv run typos
+        language: system
+
       - id: pytest
         name: pytest
         entry: uv run pytest
         language: system
-        types: [python]
+        types: [ python ]
         pass_filenames: false
         always_run: true

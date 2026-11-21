@@ -34,11 +34,13 @@ include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.6.0",
+    "prek>=0.5.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "python-semantic-release>=10.5.3",
     "ruff>=0.15.16",
+    "ty>=0.0.107",
+    "typos>=1.52.2",
 ]
 
 [tool.semantic_release]
@@ -95,3 +97,10 @@ indent-style = "space"
 quote-style = "double"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.typos.files]
+extend-exclude = ["CHANGELOG.md"]  # auto-generated; contains commit hashes
+
+[tool.typos.default.extend-words]
+caf = "caf"  # "caf\xe9" (café) test inputs for non-ASCII tokens
+mis = "mis"  # "mis-authenticated"
