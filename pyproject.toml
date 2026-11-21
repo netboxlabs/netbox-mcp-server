@@ -61,7 +61,7 @@ changelog_file = "CHANGELOG.md"
 [tool.ruff]
 line-length = 100
 indent-width = 4
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
