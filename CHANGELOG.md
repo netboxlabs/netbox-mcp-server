@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v1.3.1 (2026-11-23)
+
+### Bug Fixes
+
+- **deps**: Update non-major python dependencies
+  ([#221](https://github.com/netboxlabs/netbox-mcp-server/pull/221),
+  [`86edd13`](https://github.com/netboxlabs/netbox-mcp-server/commit/86edd13aadf7db8cdcfda9d42b738d30b448c915))
+
+### Chores
+
+- **docker**: Use uv image and copy only the venv into runtime stage
+  ([#222](https://github.com/netboxlabs/netbox-mcp-server/pull/222),
+  [`76c2e2d`](https://github.com/netboxlabs/netbox-mcp-server/commit/76c2e2d50c2a333dcdbd4edfe17b12bf461a70f8))
+
+
 ## v1.3.0 (2026-11-20)
 
 ### Bug Fixes
