@@ -9,6 +9,8 @@ def test_get_objects_description_warns_about_field_specific_lookup_support():
     """The LLM-facing filter guidance should not imply universal lookup support."""
     tool = asyncio.run(mcp.get_tool("netbox_get_objects"))
 
+    assert tool is not None
+    assert tool.description is not None
     description = tool.description
 
     assert "Lookup support is field-specific" in description

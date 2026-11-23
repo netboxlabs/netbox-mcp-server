@@ -24,16 +24,16 @@ pip install -e .
 ### REST API Client
 
 ```python
-from client import NetBoxRestClient
+from netbox_mcp_server.netbox_client import NetBoxRestClient
 
 # Initialize the client
 client = NetBoxRestClient(
     url="https://netbox.example.com", token="your_api_token_here", verify_ssl=True
 )
 
-# Get all sites
-sites = client.get("dcim/sites")
-print(f"Found {len(sites)} sites")
+# Get the total number of sites
+sites_page = client.get("dcim/sites")
+print(f"Found {sites_page['count']} sites")
 
 # Get a specific site
 site = client.get("dcim/sites", id=1)
@@ -43,15 +43,18 @@ print(f"Site name: {site.get('name')}")
 # Get sites page by page
 page = 1
 limit = 50
+offset = 0
 while True:
-    sites_page = client.get("dcim/sites", params={"limit": limit, "offset": (page - 1) * limit})
-    if not sites_page:
-        break
-
-    print(f"Processing page {page} with {len(sites_page)} sites")
-    for site in sites_page:
+    sites_page = client.get("dcim/sites", params={"limit": limit, "offset": offset})
+    sites = sites_page["results"]
+    print(f"Processing page {page} with {len(sites)} site(s)")
+    for site in sites:
         print(f"Site: {site.get('name')}")
 
+    if not sites_page["next"]:
+        break
+
+    offset += len(sites)
     page += 1
 
 # Create a new site
@@ -86,12 +89,25 @@ updated_sites = client.bulk_update(
 success = client.bulk_delete("dcim/sites", ids=[1, 2])
 ```
 
+### One Client per User
+
+`with_token()` returns a client that uses another token but shares the same HTTP
+connections. The MCP server uses this for token passthrough. A client created with
+`token=None` sends no credentials.
+
+```python
+base = NetBoxRestClient(url="https://netbox.example.com", token=None)
+
+# v2 tokens (nbt_...) are sent as "Bearer", v1 tokens as "Token"
+alice = base.with_token("nbt_abc123.secret")
+```
+
 ## Extending for ORM Implementation
 
 The `NetBoxClientBase` abstract base class can be extended to create an ORM-based implementation for use within a NetBox plugin:
 
 ```python
-from client import NetBoxClientBase
+from netbox_mcp_server.netbox_client import NetBoxClientBase
 from django.db import transaction
 
 

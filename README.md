@@ -5,7 +5,7 @@
 > - Change `uv run server.py` to `uv run netbox-mcp-server`
 > - Update Claude Desktop/Code configs to use `netbox-mcp-server` instead of `server.py`
 > - Docker users: rebuild images with updated CMD
-> - See [CHANGELOG.md](CHANGELOG.md) for full details
+> - See [CHANGELOG.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CHANGELOG.md) for full details
 
 This is a simple read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for NetBox. It enables you to interact with your data in NetBox directly via LLMs that support MCP.
 
@@ -19,17 +19,28 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
 
 | Tool | Description |
 |------|-------------|
-| get_objects | Retrieves NetBox core objects based on their type and filters |
-| get_object_by_id | Gets detailed information about a specific NetBox object by its ID |
-| get_changelogs | Retrieves change history records (audit trail) based on filters |
+| `netbox_get_objects` | Retrieves NetBox core objects based on their type and filters |
+| `netbox_get_object_by_id` | Gets detailed information about a specific NetBox object by its ID |
+| `netbox_get_changelogs` | Retrieves change history records (audit trail) based on filters |
+| `netbox_search_objects` | Searches NetBox objects by a text query, optionally limited by object type and returned fields |
 
-> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full scope statement and rationale.
+> Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CONTRIBUTING.md) for the full scope statement and rationale.
 
 ## Usage
 
 1. Create a read-only API token in NetBox with sufficient permissions for the tool to access the data you want to make available via MCP.
 
-2. Install dependencies:
+2. Install the server. The published package runs without a clone:
+
+    ```bash
+    # Run directly with uv
+    uvx netbox-mcp-server
+
+    # Or install with pip
+    pip install netbox-mcp-server
+    ```
+
+    To run from a clone of this repository instead, install dependencies:
 
     ```bash
     # Using UV (recommended)
@@ -39,7 +50,7 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
     pip install -e .
     ```
 
-3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run netbox-mcp-server`
+3. Verify the server can run: `NETBOX_URL=https://netbox.example.com/ NETBOX_TOKEN=<your-api-token> uv run netbox-mcp-server` (from a clone), or the same with `uvx netbox-mcp-server` for the published package.
 
 4. Add the MCP server to your LLM client. See below for some examples with Claude.
 
@@ -58,7 +69,7 @@ claude mcp add --transport stdio netbox \
 
 **Important notes:**
 
-- Replace `/path/to/netbox-mcp-server` with the absolute path to your local clone
+- Replace `/path/to/netbox-mcp-server` with the absolute path to your local clone, or replace everything after `--` with `uvx netbox-mcp-server` to use the published package
 - The `--` separator distinguishes Claude Code flags from the server command
 - Use `--scope project` to share the configuration via `.mcp.json` in version control
 - Use `--scope user` to make it available across all your projects (default is `local`)
@@ -169,12 +180,13 @@ The server supports multiple configuration sources with the following precedence
 | Setting | Type | Default | Required | Description |
 |---------|------|---------|----------|-------------|
 | `NETBOX_URL` | URL | - | Yes | Base URL of your NetBox instance (e.g., https://netbox.example.com/) |
-| `NETBOX_TOKEN` | String | - | Yes | API token for authentication |
+| `NETBOX_TOKEN` | String | - | Unless `TOKEN_PASSTHROUGH` | API token for authentication. Must not be set with `TOKEN_PASSTHROUGH`. |
 | `NETBOX_HOST` | String | - | No | Host header to send to NetBox. Set this when `NETBOX_URL` points at a local tunnel or proxy (e.g. Teleport) and NetBox only accepts its public hostname. |
 | `TRANSPORT` | `stdio` \| `http` | `stdio` | No | MCP transport protocol |
 | `HOST` | String | `127.0.0.1` | If HTTP | Host address for HTTP server |
 | `PORT` | Integer | `8000` | If HTTP | Port for HTTP server |
 | `MCP_AUTH_TOKEN` | String | - | No | Bearer token required on the HTTP endpoint. When unset, the HTTP transport is unauthenticated. Clients send `Authorization: Bearer <token>`. |
+| `TOKEN_PASSTHROUGH` | Boolean | `false` | No | HTTP only. Each client sends its own NetBox token and NetBox applies that user's permissions. See [Per-User NetBox Tokens](#per-user-netbox-tokens-token-passthrough). |
 | `VERIFY_SSL` | Boolean | `true` | No | Whether to verify SSL certificates |
 | `ENABLE_PLUGIN_DISCOVERY` | Boolean | `false` | No | Auto-discover plugin object types at startup |
 | `LOG_LEVEL` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | `INFO` | No | Logging verbosity |
@@ -223,6 +235,58 @@ uv run netbox-mcp-server \
   --port 8000
 ```
 
+#### Per-User NetBox Tokens (Token Passthrough)
+
+By default every client shares the permissions of `NETBOX_TOKEN`. With
+`TOKEN_PASSTHROUGH=true`, each client sends its own NetBox API token instead, and the
+server makes every NetBox call with that token. NetBox then applies that user's
+object permissions, so two people using the same server only see what they could see
+in NetBox itself.
+
+```bash
+export NETBOX_URL=https://netbox.example.com/
+export TRANSPORT=http
+export TOKEN_PASSTHROUGH=true
+# NETBOX_TOKEN must not be set
+
+uv run netbox-mcp-server
+```
+
+Each user creates an API token in NetBox (read-only is enough) and adds it to their
+client. Send it as `Bearer` even for v1 tokens; the server uses the right scheme
+towards NetBox.
+
+```bash
+claude mcp add --transport http netbox https://mcp.example.com/mcp \
+  --header "Authorization: Bearer <your-netbox-token>"
+```
+
+How it works:
+
+- The server checks each bearer against NetBox (`/api/authentication-check/`, or
+  `/api/users/config/` on NetBox < 4.5). A token NetBox rejects (invalid, disabled,
+  expired, or not allowed from this IP) gets `401`. If NetBox cannot be reached or
+  fails, the client gets `503` with `Retry-After`, not a misleading `401`.
+- Accepted tokens are remembered for 60 seconds. A token revoked in that window still
+  gets no data, because NetBox rejects the tool calls made with it.
+- An MCP session belongs to the user who opened it; another user's token cannot use it.
+- Tokens are kept in memory only (hashed as cache keys) and are never logged.
+- Clients send their NetBox token to this server, so always put it behind TLS. The
+  server also forwards those tokens to NetBox, and logs a warning at startup if
+  `NETBOX_URL` is plain HTTP (other than localhost) or `VERIFY_SSL` is off.
+
+Limitations:
+
+- `MCP_AUTH_TOKEN` and `ENABLE_PLUGIN_DISCOVERY` cannot be combined with this mode,
+  since both rely on a shared token. Plugin object types are not available.
+- Clients must be able to send a static `Authorization` header. MCP clients that
+  only support OAuth sign-in cannot use this mode.
+- Each request with an unknown token costs one NetBox API call, so rate-limit this
+  server at your proxy if it is exposed widely.
+- NetBox checks a token's **Allowed IPs** against the address that connects to it,
+  which is this server, not the user. Tokens with Allowed IPs only work if the allowed
+  range includes this server.
+
 ### Example .env File
 
 Create a `.env` file in the project root:
@@ -240,6 +304,8 @@ TRANSPORT=stdio
 # PORT=8000
 # Bearer token required on the HTTP endpoint. When unset, the endpoint is unauthenticated.
 # MCP_AUTH_TOKEN=a-strong-random-token
+# Use each client's own NetBox token instead of NETBOX_TOKEN (HTTP only)
+# TOKEN_PASSTHROUGH=true
 
 # Host header override (optional). Use when NETBOX_URL is a local tunnel/proxy
 # and NetBox's ALLOWED_HOSTS only accepts its public hostname.
@@ -316,7 +382,7 @@ docker run --rm \
 
 > **Note:** Docker containers require `TRANSPORT=http` since stdio transport doesn't work in containerized environments.
 
-> **⚠️ Security:** The HTTP transport has **no authentication** unless you set `MCP_AUTH_TOKEN`. Binding to `HOST=0.0.0.0` exposes read access to all NetBox data your token can see to anyone who can reach the port. Set a strong `MCP_AUTH_TOKEN` (clients then send `Authorization: Bearer <token>`) and terminate TLS at a reverse proxy or gateway before exposing the server to a network. A bearer token sent over plain HTTP can be intercepted, so TLS is required for real deployments.
+> **⚠️ Security:** The HTTP transport has **no authentication** unless you set `MCP_AUTH_TOKEN` or use [token passthrough](#per-user-netbox-tokens-token-passthrough). Binding to `HOST=0.0.0.0` exposes read access to all NetBox data your token can see to anyone who can reach the port. Set a strong `MCP_AUTH_TOKEN` (clients then send `Authorization: Bearer <token>`) and terminate TLS at a reverse proxy or gateway before exposing the server to a network. A bearer token sent over plain HTTP can be intercepted, so TLS is required for real deployments.
 
 **Connecting to NetBox on your host machine:**
 
@@ -351,6 +417,20 @@ docker run --rm \
   -p 8000:8000 \
   netbox-mcp-server:latest
 ```
+
+**With per-user NetBox tokens (token passthrough):**
+
+```bash
+docker run --rm \
+  -e NETBOX_URL=https://netbox.example.com/ \
+  -e TRANSPORT=http \
+  -e HOST=0.0.0.0 \
+  -e TOKEN_PASSTHROUGH=true \
+  -p 8000:8000 \
+  netbox-mcp-server:latest
+```
+
+Leave out `NETBOX_TOKEN` and `MCP_AUTH_TOKEN`; each client sends its own NetBox token.
 
 The server will be accessible at `http://localhost:8000/mcp` for MCP clients. You can connect to it using your preferred method.
 
@@ -403,7 +483,7 @@ If discovery fails for any reason (network error, insufficient permissions, unsu
 
 ## Development
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing new features. We encourage filing an issue for discussion first to confirm scope fit.
+Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CONTRIBUTING.md) before proposing new features. We encourage filing an issue for discussion first to confirm scope fit.
 
 If your use case needs capabilities outside this project's scope, forking under Apache 2.0 is an actively supported path.
 

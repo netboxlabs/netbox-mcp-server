@@ -22,8 +22,19 @@ class Settings(BaseSettings):
     netbox_url: AnyUrl
     """Base URL of the NetBox instance (e.g., https://netbox.example.com/)"""
 
-    netbox_token: SecretStr
-    """API token for NetBox authentication (treated as secret)"""
+    netbox_token: SecretStr | None = None
+    """API token for NetBox authentication (treated as secret).
+
+    Required unless token_passthrough is enabled.
+    """
+
+    token_passthrough: bool = False
+    """Use each HTTP client's own NetBox token instead of a shared NETBOX_TOKEN.
+
+    Clients send 'Authorization: Bearer <netbox token>'. The server checks the token
+    against NetBox and makes every API call with it, so NetBox applies that user's
+    permissions. Only valid with transport='http'.
+    """
 
     netbox_host: str | None = None
     """Optional Host header override for requests to NetBox.
@@ -113,13 +124,32 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_http_transport_requirements(self) -> "Settings":
-        """No additional validation needed for HTTP transport; defaults are appropriate."""
+    def validate_token_settings(self) -> "Settings":
+        """Ensure exactly one way of getting NetBox tokens is configured."""
+        if not self.token_passthrough:
+            if self.netbox_token is None:
+                raise ValueError("netbox_token is required unless TOKEN_PASSTHROUGH is enabled")
+            return self
+
+        if self.transport != "http":
+            raise ValueError("TOKEN_PASSTHROUGH requires TRANSPORT=http")
+        # A shared token next to per-user tokens would be an easy way to leak
+        # one user's access to everyone, so refuse it outright.
+        if self.netbox_token is not None:
+            raise ValueError("NETBOX_TOKEN must not be set when TOKEN_PASSTHROUGH is enabled")
+        # Both use the Authorization header, so they cannot be combined.
+        if self.mcp_auth_token is not None:
+            raise ValueError("MCP_AUTH_TOKEN cannot be used with TOKEN_PASSTHROUGH")
+        if self.enable_plugin_discovery:
+            raise ValueError(
+                "ENABLE_PLUGIN_DISCOVERY needs a shared NETBOX_TOKEN and cannot be used "
+                "with TOKEN_PASSTHROUGH"
+            )
         return self
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins")
     @classmethod
-    def validate_cors_origins(cls, v: object) -> list[str]:
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
         """Ensure each CORS origin is a valid URL."""
         for origin in v:
             if origin == "*":
@@ -140,7 +170,8 @@ class Settings(BaseSettings):
         """
         summary: dict[str, Any] = {
             "netbox_url": str(self.netbox_url),
-            "netbox_token": "***REDACTED***",
+            "netbox_token": "***REDACTED***" if self.netbox_token else None,
+            "token_passthrough": self.token_passthrough,
             "transport": self.transport,
             "verify_ssl": self.verify_ssl,
             "enable_plugin_discovery": self.enable_plugin_discovery,
@@ -188,7 +219,7 @@ def configure_logging(
             "urllib3": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
-            "httpx": {
+            "httpx2": {
                 "level": "WARNING" if log_level != "DEBUG" else "DEBUG",
             },
         },
