@@ -140,9 +140,9 @@ class Settings(BaseSettings):
             )
         return self
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins")
     @classmethod
-    def validate_cors_origins(cls, v: object) -> list[str]:
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
         """Ensure each CORS origin is a valid URL."""
         for origin in v:
             if origin == "*":

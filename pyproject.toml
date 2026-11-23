@@ -34,11 +34,13 @@ include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.7.0",
+    "prek>=0.5.0",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "python-semantic-release>=10.7.0",
     "ruff>=0.17.5",
+    "ty>=0.0.107",
+    "typos>=1.52.2",
 ]
 
 [tool.semantic_release]
@@ -59,7 +61,7 @@ changelog_file = "CHANGELOG.md"
 [tool.ruff]
 line-length = 100
 indent-width = 4
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -95,3 +97,10 @@ indent-style = "space"
 quote-style = "double"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.typos.files]
+extend-exclude = ["CHANGELOG.md"]  # auto-generated; contains commit hashes
+
+[tool.typos.default.extend-words]
+caf = "caf"  # "caf\xe9" (café) test inputs for non-ASCII tokens
+mis = "mis"  # "mis-authenticated"

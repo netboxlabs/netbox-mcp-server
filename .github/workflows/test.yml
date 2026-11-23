@@ -39,6 +39,9 @@ jobs:
       - name: Run ruff formatter
         run: uv run ruff format --check .
 
+      - name: Run typos spell checker
+        run: uv run typos
+
       - name: Run pytest
         run: uv run pytest -v
         env:

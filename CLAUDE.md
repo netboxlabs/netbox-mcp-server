@@ -51,7 +51,14 @@ uv run -m netbox_mcp_server
 # Lint, format check and tests (the checks CI runs)
 uv run ruff check .
 uv run ruff format --check .
+uv run typos
 uv run pytest
+
+# Type check (local prek hook only; not run in CI yet)
+uv run ty check
+
+# Run every check as git hooks (one-time setup)
+uv run prek install
 
 # Add to Claude Code (for development/testing)
 claude mcp add --transport stdio netbox \
