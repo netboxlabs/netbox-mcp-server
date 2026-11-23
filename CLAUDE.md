@@ -8,7 +8,7 @@ A read-only [Model Context Protocol](https://modelcontextprotocol.io/) server th
 
 ## Tech Stack
 
-- **Python**: >=3.11, <3.15
+- **Python**: >=3.11, <3.16
 - **Package Manager**: uv
 - **MCP Framework**: FastMCP >=4.0.0
 - **HTTP Client**: httpx2
@@ -189,7 +189,7 @@ See `NETBOX_OBJECT_TYPES` in `server.py` for complete list.
 
 ## Testing Philosophy
 
-The pytest suite in `tests/` does not need a running NetBox instance; NetBox API calls are mocked. CI runs it on Python 3.11-3.14. When adding tests:
+The pytest suite in `tests/` does not need a running NetBox instance; NetBox API calls are mocked. CI runs it on Python 3.11-3.15. When adding tests:
 
 - Test tool behavior with real NetBox instance (Docker-based test environment)
 - Mock external NetBox API calls only when necessary
