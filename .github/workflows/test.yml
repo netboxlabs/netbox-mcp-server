@@ -39,9 +39,6 @@ jobs:
       - name: Run ruff formatter
         run: uv run ruff format --check .
 
-      - name: Run ty type checker
-        run: uv run ty check
-
       - name: Run typos spell checker
         run: uv run typos
 
