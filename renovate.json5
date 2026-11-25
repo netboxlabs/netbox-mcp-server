@@ -29,6 +29,13 @@
       matchUpdateTypes: ['minor', 'patch'],
       groupName: 'non-major Python dependencies',
     },
+    {
+      description: 'fastmcp ships more often than the stability window, which blocks every PR it is grouped into',
+      matchManagers: ['pep621'],
+      matchDepNames: ['fastmcp'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'fastmcp',
+    },
 
     // GitHub Actions
     {
