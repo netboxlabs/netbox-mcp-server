@@ -2,6 +2,48 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-11-23)
+
+### Bug Fixes
+
+- **types**: Resolve ty type errors
+  ([#224](https://github.com/netboxlabs/netbox-mcp-server/pull/224),
+  [`629d7e0`](https://github.com/netboxlabs/netbox-mcp-server/commit/629d7e06e1f16469f24b79aa39fe067a7ecf03ae))
+
+### Chores
+
+- **deps**: Update actions/checkout action to v7
+  ([#226](https://github.com/netboxlabs/netbox-mcp-server/pull/226),
+  [`23de29a`](https://github.com/netboxlabs/netbox-mcp-server/commit/23de29a95f4867da329fb1201370ed800167dcf7))
+
+- **deps**: Update astral-sh/setup-uv action to v10
+  ([#227](https://github.com/netboxlabs/netbox-mcp-server/pull/227),
+  [`6f0de4b`](https://github.com/netboxlabs/netbox-mcp-server/commit/6f0de4bc55394af6b5c433ea1d97a1c263053ca0))
+
+- **deps**: Update non-major github actions
+  ([#225](https://github.com/netboxlabs/netbox-mcp-server/pull/225),
+  [`da63f24`](https://github.com/netboxlabs/netbox-mcp-server/commit/da63f243cdb3ebd2664ed352b682913bcfd4ff86))
+
+- **dev**: Switch to prek and add ty and typos hooks
+  ([#224](https://github.com/netboxlabs/netbox-mcp-server/pull/224),
+  [`629d7e0`](https://github.com/netboxlabs/netbox-mcp-server/commit/629d7e06e1f16469f24b79aa39fe067a7ecf03ae))
+
+- **ruff**: Target Python 3.11 to match requires-python
+  ([#224](https://github.com/netboxlabs/netbox-mcp-server/pull/224),
+  [`629d7e0`](https://github.com/netboxlabs/netbox-mcp-server/commit/629d7e06e1f16469f24b79aa39fe067a7ecf03ae))
+
+### Continuous Integration
+
+- Run ty as a local hook only, not in CI
+  ([#224](https://github.com/netboxlabs/netbox-mcp-server/pull/224),
+  [`629d7e0`](https://github.com/netboxlabs/netbox-mcp-server/commit/629d7e06e1f16469f24b79aa39fe067a7ecf03ae))
+
+### Features
+
+- **python**: Support Python 3.15 ([#223](https://github.com/netboxlabs/netbox-mcp-server/pull/223),
+  [`298b5b8`](https://github.com/netboxlabs/netbox-mcp-server/commit/298b5b86c38be759096713d5dab703a034f65e6f))
+
+
 ## v1.3.1 (2026-11-23)
 
 ### Bug Fixes
