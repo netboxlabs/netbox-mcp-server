@@ -23,6 +23,7 @@ For chat, use cases, and general MCP discussion, join the NetBox community at [n
 | `netbox_get_object_by_id` | Gets detailed information about a specific NetBox object by its ID |
 | `netbox_get_changelogs` | Retrieves change history records (audit trail) based on filters |
 | `netbox_search_objects` | Searches NetBox objects by a text query, optionally limited by object type and returned fields |
+| `netbox_get_available_prefixes` | Finds free space inside a prefix, optionally split into blocks of a given prefix length, with an optional VRF check |
 
 > Note: Core NetBox object types are always available. Plugin object types can be auto-discovered. See [Plugin Object Type Discovery](#plugin-object-type-discovery). Advanced features (GraphQL, dynamic model discovery, etc.) are deliberately out of scope. See [CONTRIBUTING.md](https://github.com/netboxlabs/netbox-mcp-server/blob/main/CONTRIBUTING.md) for the full scope statement and rationale.
 
