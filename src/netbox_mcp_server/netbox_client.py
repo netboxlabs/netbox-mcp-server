@@ -167,6 +167,7 @@ class NetBoxRestClient(NetBoxClientBase):
         token: str | None,
         verify_ssl: bool = True,
         session: httpx2.Client | None = None,
+        host_header: str | None = None,
     ):
         """
         Initialize the REST API client.
@@ -176,6 +177,8 @@ class NetBoxRestClient(NetBoxClientBase):
             token: API token for authentication, or None to send no credentials
             verify_ssl: Whether to verify SSL certificates
             session: Optional HTTP session to share with other clients (see with_token)
+            host_header: Optional Host header override, for when ``url`` points at a
+                tunnel or proxy and NetBox only accepts its public hostname
         """
         self.base_url = url.rstrip("/")
         self.api_url = f"{self.base_url}/api"
@@ -188,6 +191,8 @@ class NetBoxRestClient(NetBoxClientBase):
                 "Accept": "application/json",
             }
         )
+        if host_header:
+            self.session.headers["Host"] = host_header
         # Sent per request instead of on the session, so clients sharing a
         # session can each use their own token.
         self.request_headers: dict[str, str] = {}
