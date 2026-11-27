@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -13,9 +13,9 @@ authors = [{ name = "NetBox Labs" }]
 keywords = ["netbox", "mcp", "model-context-protocol"]
 requires-python = ">=3.11,<3.16"
 dependencies = [
-    "httpx2>=2.12.0",
-    "fastmcp>=4.1.8,<5",
-    "pydantic>=2.14.3",
+    "httpx2>=2.16.2",
+    "fastmcp>=4.2.3,<5",
+    "pydantic>=2.14.4",
     "pydantic-settings>=2.16.3",
 ]
 
@@ -34,11 +34,11 @@ include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependency-groups]
 dev = [
-    "prek>=0.5.0",
+    "prek>=0.5.11",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "python-semantic-release>=10.7.0",
-    "ruff>=0.17.5",
+    "ruff>=0.17.6",
     "ty>=0.0.107",
     "typos>=1.52.2",
 ]
