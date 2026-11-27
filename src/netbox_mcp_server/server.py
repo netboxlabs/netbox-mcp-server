@@ -7,7 +7,8 @@ import logging
 import re
 import sys
 import time
-from typing import Annotated, Any
+from itertools import islice
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse, urlsplit
 
 import httpx2
@@ -776,6 +777,81 @@ def netbox_search_objects(
             # results[obj_type] already has empty list
             continue
 
+    return results
+
+
+@mcp.tool(annotations={"readOnlyHint": True})
+def netbox_get_available_prefixes(
+    parent_id: int,
+    prefix_length: Annotated[int | None, Field(ge=0, le=128)] = None,
+    vrf_id: int | Literal["global"] | None = None,
+    limit: Annotated[int, Field(default=5, ge=1, le=100)] = 5,
+) -> list[dict]:
+    """
+    Find free (unallocated) space inside a prefix. Read-only.
+
+    Args:
+        parent_id: ID of the parent prefix (ipam.prefix)
+        prefix_length: Optional mask length (e.g. 26). When set, free blocks too small
+                       are dropped and the rest are split into candidates of this size.
+                       When omitted, free blocks are returned as NetBox reports them
+                       (maximal blocks, e.g. 10.0.4.0/22).
+        vrf_id: Optional VRF check. Pass a VRF ID, or "global" for the global table.
+                The call fails if the parent prefix is in a different VRF.
+        limit: Max number of items returned (default 5, max 100)
+
+    VRF handling: free space is computed only against child prefixes in the same VRF as
+    the parent prefix. The same CIDR often exists globally and in VRFs, so look up the
+    parent ID with its VRF and pass vrf_id to avoid answering for the wrong routing table:
+
+        prefixes = netbox_get_objects("ipam.prefix", {"prefix": "10.0.0.0/16", "vrf_id": 5}, fields=["id"])
+        netbox_get_available_prefixes(parent_id=prefixes["results"][0]["id"], vrf_id=5, prefix_length=26)
+
+    Returns:
+        List of {"family", "prefix", "vrf"} items. An empty list means there is no
+        free space of that size.
+    """
+    endpoint, fallback = _get_endpoint_info("ipam.prefix")
+    client = get_netbox_client()
+
+    if vrf_id is not None:
+        parent = client.get(
+            endpoint,
+            id=parent_id,
+            params={"fields": "id,prefix,vrf"},
+            fallback_endpoint=fallback,
+        )
+        parent_vrf = parent.get("vrf")
+        actual = parent_vrf.get("id") if parent_vrf else None
+        expected = None if vrf_id == "global" else vrf_id
+        if actual != expected:
+            actual_desc = f"VRF {actual}" if actual is not None else "the global table"
+            expected_desc = "the global table" if expected is None else f"VRF {expected}"
+            raise ValueError(
+                f"Prefix {parent_id} ({parent.get('prefix')}) belongs to {actual_desc}, "
+                f"not {expected_desc}."
+            )
+
+    blocks = client.get(
+        f"{endpoint}/{parent_id}/available-prefixes",
+        fallback_endpoint=f"{fallback}/{parent_id}/available-prefixes" if fallback else None,
+    )
+
+    if prefix_length is None:
+        return blocks[:limit]
+
+    results: list[dict] = []
+    for block in blocks:
+        network = ipaddress.ip_network(block["prefix"], strict=False)
+        if prefix_length < network.prefixlen or prefix_length > network.max_prefixlen:
+            continue
+        remaining = limit - len(results)
+        for subnet in islice(network.subnets(new_prefix=prefix_length), remaining):
+            results.append(
+                {"family": block.get("family"), "prefix": str(subnet), "vrf": block.get("vrf")}
+            )
+        if len(results) >= limit:
+            break
     return results
 
 
